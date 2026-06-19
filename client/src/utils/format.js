@@ -13,3 +13,9 @@ export function formatInflow(value) {
 export function formatOutflow(value) {
   return `($${value.toFixed(2)})`
 }
+
+// Signed format used for deltas and recent-activity amounts: "+$12.34" / "−$12.34".
+export function formatSigned(value) {
+  const abs = Math.abs(value).toFixed(2)
+  return (value < 0 ? '−$' : '+$') + abs
+}

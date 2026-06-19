@@ -1,38 +1,64 @@
 import { Pencil, Trash2 } from 'lucide-react'
-import { ACCOUNT_NAMES } from '../../constants/categories.js'
-import { highlightClassFor, highlightLabelFor } from './highlight.js'
+import { ACCOUNT_NAMES, colorForCategory } from '../../constants/categories.js'
+import { highlightClassFor, transferBadgeFor } from './highlight.js'
 import { formatCurrency } from '../../utils/format.js'
 
 export default function TransactionRow({ txn, onEdit, onDelete }) {
   const highlightClass = highlightClassFor(txn)
-  // Transfer highlights mark the whole row (it's about the transfer itself);
-  // spend-amount highlights (orange/red) only mark the amount cell.
-  const isRowHighlight = highlightClass === 'highlight-topup' || highlightClass === 'highlight-transfer-out'
-  const rowClass = isRowHighlight ? highlightClass : ''
-  const amountClass = !isRowHighlight ? (highlightClass || '') : ''
+  const isTransfer = !!txn.is_transfer
+  // Transfers get one neutral row background; >$20/>$40 spend warnings render as a
+  // small dot next to the amount instead of a cell background fill.
+  const rowClass = isTransfer ? 'highlight-transfer' : ''
+  const isSpendWarning = highlightClass === 'highlight-orange' || highlightClass === 'highlight-red'
+  const dotClass = isSpendWarning ? highlightClass : ''
   const amountText = `$${txn.amount.toFixed(2)}`
-  const transferLabel = isRowHighlight ? highlightLabelFor(highlightClass) : null
+  const badge = transferBadgeFor(txn)
+  const dotColor = isTransfer ? 'var(--faint)' : colorForCategory(txn.category)
+  const warningTitle = highlightClass === 'highlight-red'
+    ? 'Large spend: over $40'
+    : highlightClass === 'highlight-orange'
+      ? 'Notable spend: over $20'
+      : undefined
 
   return (
     <tr className={`txn-row ${rowClass}`}>
-      <td className="col-account">{ACCOUNT_NAMES[txn.account_id]}</td>
-      <td className="col-category">{txn.category}</td>
-      <td className={`col-amount ${txn.direction === 'in' ? amountClass : ''}`}>{txn.direction === 'in' ? amountText : ''}</td>
-      <td className={`col-amount ${txn.direction === 'out' ? amountClass : ''}`}>{txn.direction === 'out' ? amountText : ''}</td>
+      <td className="account-name-cell">{ACCOUNT_NAMES[txn.account_id]}</td>
       <td>
-        {txn.comment}
-        {transferLabel && <span className="transfer-label">{transferLabel}</span>}
+        <span className="category-cell">
+          <span className="category-dot" style={{ background: dotColor }} />
+          {txn.category}
+        </span>
       </td>
-      <td className="col-amount">{formatCurrency(txn.running_balance)}</td>
-      <td>
-        <div className="col-actions">
-          <button type="button" className="btn-table" onClick={() => onEdit(txn)} aria-label="Edit transaction">
-            <Pencil size={16} aria-hidden="true" />
-          </button>
-          <button type="button" className="btn-table btn-delete" onClick={() => onDelete(txn)} aria-label="Delete transaction">
-            <Trash2 size={16} aria-hidden="true" />
-          </button>
-        </div>
+      <td className={`col-amount ${txn.direction === 'in' ? 'cell-in' : 'cell-faint'}`}>
+        {txn.direction === 'in' ? amountText : '—'}
+      </td>
+      <td className={`col-amount ${txn.direction === 'out' ? 'cell-out' : 'cell-faint'}`}>
+        {txn.direction === 'out' ? (
+          <span className="amount-with-flag">
+            {amountText}
+            {dotClass && (
+              <span
+                className={`spend-warning-dot ${dotClass}`}
+                role="img"
+                aria-label={warningTitle}
+                title={warningTitle}
+              />
+            )}
+          </span>
+        ) : '—'}
+      </td>
+      <td className="comment-cell">
+        {txn.comment}
+        {badge && <span className="transfer-label" style={{ color: badge.color }}>{badge.text}</span>}
+      </td>
+      <td className="col-amount balance-cell">{formatCurrency(txn.running_balance)}</td>
+      <td className="actions-cell">
+        <button type="button" className="btn-sm" onClick={() => onEdit(txn)} aria-label="Edit transaction">
+          <Pencil size={14} aria-hidden="true" />
+        </button>
+        <button type="button" className="btn-sm btn-sm-delete" onClick={() => onDelete(txn)} aria-label="Delete transaction">
+          <Trash2 size={14} aria-hidden="true" />
+        </button>
       </td>
     </tr>
   )

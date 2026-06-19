@@ -1,21 +1,23 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Receipt, ArrowLeftRight } from 'lucide-react'
 import { api } from '../api/client.js'
 import TransactionList from '../components/transactions/TransactionList.jsx'
-import TransactionForm from '../components/transactions/TransactionForm.jsx'
-import TransferForm from '../components/transactions/TransferForm.jsx'
+import TransactionModal from '../components/transactions/TransactionModal.jsx'
 import EditTransactionPanel from '../components/transactions/EditTransactionPanel.jsx'
-import { currentMonthStr, monthRangeFor } from '../utils/dateUtils.js'
+import { currentMonthStr, monthRangeFor, monthLabel } from '../utils/dateUtils.js'
+import { formatCurrency } from '../utils/format.js'
 import { ACCOUNT_NAMES } from '../constants/categories.js'
+
+const ACCOUNT_FILTERS = [['all', 'All'], ...Object.entries(ACCOUNT_NAMES)]
 
 export default function TransactionsPage() {
   const [month, setMonth] = useState(currentMonthStr())
   const [accountFilter, setAccountFilter] = useState('all')
   const [transactions, setTransactions] = useState([])
+  const [accounts, setAccounts] = useState([])
   const [loading, setLoading] = useState(true)
-  const [formError, setFormError] = useState(null)
-  const [mode, setMode] = useState('normal')
   const [editingTxn, setEditingTxn] = useState(null)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalMode, setModalMode] = useState('normal')
 
   const loadTransactions = useCallback(async () => {
     setLoading(true)
@@ -30,16 +32,24 @@ export default function TransactionsPage() {
     loadTransactions()
   }, [loadTransactions])
 
+  useEffect(() => {
+    api.getAccounts().then(setAccounts)
+  }, [])
+
+  function refreshAccounts() {
+    api.getAccounts().then(setAccounts)
+  }
+
   async function handleCreateTransaction(data) {
-    setFormError(null)
     await api.createTransaction(data)
     await loadTransactions()
+    refreshAccounts()
   }
 
   async function handleCreateTransfer(data) {
-    setFormError(null)
     await api.createTransfer(data)
     await loadTransactions()
+    refreshAccounts()
   }
 
   async function handleSaveEdit(id, data) {
@@ -55,26 +65,45 @@ export default function TransactionsPage() {
     if (!window.confirm(confirmMsg)) return
     await api.deleteTransaction(txn.id)
     await loadTransactions()
+    refreshAccounts()
+  }
+
+  function openModal(mode) {
+    setModalMode(mode)
+    setModalOpen(true)
   }
 
   return (
-    <div>
-      <h1 className="page-title">Transactions</h1>
+    <div className="page-animate">
+      <div className="page-header-row">
+        <div>
+          <div className="page-eyebrow">{monthLabel(month)}</div>
+          <h1 className="page-title">Transactions</h1>
+        </div>
+        <div className="page-header-actions">
+          <button type="button" className="btn" onClick={() => openModal('normal')}>+ Transaction</button>
+          <button type="button" className="btn btn-secondary" onClick={() => openModal('transfer')}>⇄ Transfer</button>
+        </div>
+      </div>
 
-      <div className="card filter-bar">
-        <label className="field">
-          Month
+      <div className="filter-strip">
+        <label className="filter-field">
+          <span className="filter-field-label">Month</span>
           <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
         </label>
-        <label className="field">
-          Account
-          <select value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)}>
-            <option value="all">All accounts</option>
-            {Object.entries(ACCOUNT_NAMES).map(([id, name]) => (
-              <option key={id} value={id}>{name}</option>
-            ))}
-          </select>
-        </label>
+        <span className="filter-strip-label">Account</span>
+        <div className="pill-group">
+          {ACCOUNT_FILTERS.map(([id, name]) => (
+            <button
+              key={id}
+              type="button"
+              className={`pill-btn ${accountFilter === id ? 'active' : ''}`}
+              onClick={() => setAccountFilter(id)}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
       </div>
 
       {editingTxn && (
@@ -85,26 +114,31 @@ export default function TransactionsPage() {
         />
       )}
 
-      <div className="card">
-        <div className="mode-toggle">
-          <button type="button" className={mode === 'normal' ? 'active' : ''} onClick={() => setMode('normal')}>
-            <Receipt size={16} aria-hidden="true" /> Normal transaction
-          </button>
-          <button type="button" className={mode === 'transfer' ? 'active' : ''} onClick={() => setMode('transfer')}>
-            <ArrowLeftRight size={16} aria-hidden="true" /> Internal transfer
-          </button>
-        </div>
-        {mode === 'normal'
-          ? <TransactionForm onSubmit={handleCreateTransaction} />
-          : <TransferForm onSubmit={handleCreateTransfer} />}
-        {formError && <p className="error-text">{formError}</p>}
+      <div className="account-summary-strip">
+        {accounts.map((account) => (
+          <div className="account-summary-item" key={account.id}>
+            <span className="account-summary-label">{account.name} balance</span>
+            <span className="account-summary-value">{formatCurrency(account.balance)}</span>
+          </div>
+        ))}
       </div>
 
-      {loading ? <div className="loading-placeholder"><p>Loading...</p></div> : (
+      {loading ? (
+        <div className="loading-placeholder"><p>Loading...</p></div>
+      ) : (
         <TransactionList
           transactions={transactions}
           onEdit={setEditingTxn}
           onDelete={handleDelete}
+        />
+      )}
+
+      {modalOpen && (
+        <TransactionModal
+          initialMode={modalMode}
+          onClose={() => setModalOpen(false)}
+          onCreateTransaction={handleCreateTransaction}
+          onCreateTransfer={handleCreateTransfer}
         />
       )}
     </div>

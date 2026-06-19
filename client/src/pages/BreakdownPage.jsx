@@ -1,15 +1,34 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client.js'
-import CategoryPieChart from '../components/breakdown/CategoryPieChart.jsx'
-import BreakdownControls from '../components/breakdown/BreakdownControls.jsx'
 import { currentMonthStr, monthLabel } from '../utils/dateUtils.js'
+import { formatCurrency } from '../utils/format.js'
+import { colorForCategory } from '../constants/categories.js'
+import DonutChart from '../components/breakdown/DonutChart.jsx'
+import { buildDonutSegments } from '../utils/donutMath.js'
+import CategoryBarList from '../components/breakdown/CategoryBarList.jsx'
+import BreakdownControls from '../components/breakdown/BreakdownControls.jsx'
+
+function decorate(rows) {
+  return rows.map((r) => ({ category: r.category, value: r.total, color: colorForCategory(r.category) }))
+    .sort((a, b) => b.value - a.value)
+}
 
 export default function BreakdownPage() {
+  const [availableMonths, setAvailableMonths] = useState([])
   const [month, setMonth] = useState(currentMonthStr())
   const [summary, setSummary] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [showCash, setShowCash] = useState(true)
-  const [showPercent, setShowPercent] = useState(false)
+  const [mode, setMode] = useState('both')
+
+  useEffect(() => {
+    // Pull the full transaction history once just to know which months have
+    // data, so the month <select> can offer real history instead of only
+    // the current month. No new backend endpoint needed for this.
+    api.getTransactions({}).then((all) => {
+      const months = [...new Set(all.map((t) => t.date.slice(0, 7)))].sort((a, b) => b.localeCompare(a))
+      setAvailableMonths(months.length ? months : [currentMonthStr()])
+    })
+  }, [])
 
   useEffect(() => {
     setLoading(true)
@@ -19,45 +38,57 @@ export default function BreakdownPage() {
     })
   }, [month])
 
-  function mode() {
-    if (showCash && showPercent) return 'both'
-    if (showPercent) return 'percent'
-    return 'cash'
-  }
-
-  function toggleCash() {
-    // at least one of cash/percent must stay checked
-    if (showCash && !showPercent) return
-    setShowCash((v) => !v)
-  }
-
-  function togglePercent() {
-    if (showPercent && !showCash) return
-    setShowPercent((v) => !v)
-  }
+  const outCats = useMemo(() => (summary ? decorate(summary.byCategoryOut) : []), [summary])
+  const inCats = useMemo(() => (summary ? decorate(summary.byCategoryIn) : []), [summary])
+  const outTotal = outCats.reduce((s, c) => s + c.value, 0)
+  const inTotal = inCats.reduce((s, c) => s + c.value, 0)
+  const outDonut = useMemo(() => buildDonutSegments(outCats, outTotal), [outCats, outTotal])
+  const inDonut = useMemo(() => buildDonutSegments(inCats, inTotal), [inCats, inTotal])
 
   return (
-    <div>
-      <h1 className="page-title">Monthly Breakdown</h1>
-
-      <div className="card filter-bar">
-        <label className="field">
-          Month
-          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
-        </label>
+    <div className="page-animate">
+      <div className="page-header-row">
+        <div>
+          <div className="page-eyebrow">{monthLabel(month)}</div>
+          <h1 className="page-title">Breakdown</h1>
+        </div>
+        <div className="breakdown-header-controls">
+          <label className="breakdown-select-label">
+            <span className="filter-strip-label">Month</span>
+            <select className="breakdown-select" value={month} onChange={(e) => setMonth(e.target.value)}>
+              {availableMonths.map((m) => (
+                <option key={m} value={m}>{monthLabel(m)}</option>
+              ))}
+            </select>
+          </label>
+          <BreakdownControls mode={mode} onModeChange={setMode} />
+        </div>
       </div>
 
-      <BreakdownControls
-        showCash={showCash}
-        showPercent={showPercent}
-        onToggleCash={toggleCash}
-        onTogglePercent={togglePercent}
-      />
-
-      {loading || !summary ? <div className="loading-placeholder"><p>Loading...</p></div> : (
-        <div className="pies-compare">
-          <CategoryPieChart title={`Money out - ${monthLabel(month)}`} data={summary.byCategoryOut} mode={mode()} />
-          <CategoryPieChart title={`Money in - ${monthLabel(month)}`} data={summary.byCategoryIn} mode={mode()} />
+      {loading ? (
+        <div className="loading-placeholder"><p>Loading...</p></div>
+      ) : (
+        <div className="two-col-grid">
+          <div className="card" style={{ marginBottom: 0 }}>
+            <div className="donut-card-head">
+              <h2><span style={{ color: 'var(--red)' }}>↑</span> Money out</h2>
+              <span className="donut-card-total">{formatCurrency(outTotal)}</span>
+            </div>
+            <div className="donut-layout">
+              <DonutChart segments={outDonut} centerLabel="Spent" centerValue={formatCurrency(outTotal)} />
+              <CategoryBarList categories={outCats} total={outTotal} mode={mode} />
+            </div>
+          </div>
+          <div className="card" style={{ marginBottom: 0 }}>
+            <div className="donut-card-head">
+              <h2><span style={{ color: 'var(--green)' }}>↓</span> Money in</h2>
+              <span className="donut-card-total">{formatCurrency(inTotal)}</span>
+            </div>
+            <div className="donut-layout">
+              <DonutChart segments={inDonut} centerLabel="Earned" centerValue={formatCurrency(inTotal)} />
+              <CategoryBarList categories={inCats} total={inTotal} mode={mode} />
+            </div>
+          </div>
         </div>
       )}
     </div>

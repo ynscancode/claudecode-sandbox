@@ -3,7 +3,7 @@ import TransactionGroup from './TransactionGroup.jsx'
 
 export default function TransactionList({ transactions, onEdit, onDelete }) {
   if (transactions.length === 0) {
-    return <p>No transactions in this range.</p>
+    return <p className="empty-text">No transactions in this range.</p>
   }
 
   const grouped = groupByYearMonthDay(transactions)

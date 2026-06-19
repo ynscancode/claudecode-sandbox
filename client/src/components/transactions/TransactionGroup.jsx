@@ -1,4 +1,3 @@
-import { ArrowDownToLine, ArrowUpFromLine } from 'lucide-react'
 import { monthLabel } from '../../utils/dateUtils.js'
 import DayGroup from './DayGroup.jsx'
 
@@ -7,25 +6,25 @@ export default function TransactionGroup({ year, monthsMap, onEdit, onDelete }) 
 
   return (
     <div className="year-group">
-      <h2 className="year-header">{year}</h2>
+      <h2 className="page-eyebrow" style={{ fontSize: 'var(--font-lg)', textTransform: 'none', marginTop: 24 }}>{year}</h2>
       {months.map(([month, daysMap]) => {
         const days = [...daysMap.entries()].sort(([a], [b]) => b.localeCompare(a))
         return (
-          <div key={month} className="month-group">
-            <h3 className="month-header">{monthLabel(month)}</h3>
+          <div key={month} className="month-group table-card" style={{ marginBottom: 16 }}>
             <table>
               <thead>
                 <tr>
-                  <th className="col-account">Account</th>
-                  <th className="col-category">Category</th>
-                  <th className="col-amount"><span className="th-with-icon"><ArrowDownToLine size={14} aria-hidden="true" /> Money In</span></th>
-                  <th className="col-amount"><span className="th-with-icon"><ArrowUpFromLine size={14} aria-hidden="true" /> Money Out</span></th>
-                  <th>Comment</th>
+                  <th>Account</th>
+                  <th>Category</th>
+                  <th className="col-amount">In</th>
+                  <th className="col-amount">Out</th>
+                  <th>Note</th>
                   <th className="col-amount">Balance</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
+                <tr><td colSpan={7} style={{ padding: '4px 12px', color: 'var(--muted)', fontWeight: 600, fontSize: 'var(--font-sm)' }}>{monthLabel(month)}</td></tr>
                 {days.map(([day, txns]) => (
                   <DayGroup key={day} date={day} txns={txns} onEdit={onEdit} onDelete={onDelete} />
                 ))}

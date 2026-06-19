@@ -1,19 +1,12 @@
 import { ACCOUNTS } from '../../constants/categories.js'
 
 // Returns a CSS class name (or null) describing how a transaction row should be highlighted.
+// Transfer legs all get the same neutral row treatment (direction is conveyed by the
+// IN/OUT badge instead, see transferBadgeFor); only non-transfer spend amounts use this
+// for the >$20/>$40 warning-dot indicator.
 export function highlightClassFor(txn) {
   if (txn.is_transfer) {
-    const isSavingsToSpendingLeg =
-      (txn.category === 'transfer-in' && txn.account_id === ACCOUNTS.SPENDING) ||
-      (txn.category === 'transfer-out' && txn.account_id === ACCOUNTS.SAVINGS)
-    if (isSavingsToSpendingLeg) return 'highlight-topup'
-
-    const isSpendingToSavingsLeg =
-      (txn.category === 'transfer-out' && txn.account_id === ACCOUNTS.SPENDING) ||
-      (txn.category === 'transfer-in' && txn.account_id === ACCOUNTS.SAVINGS)
-    if (isSpendingToSavingsLeg) return 'highlight-transfer-out'
-
-    return null
+    return 'highlight-transfer'
   }
 
   if (txn.direction === 'out') {
@@ -24,10 +17,32 @@ export function highlightClassFor(txn) {
   return null
 }
 
-// Returns a short text label describing the transfer direction for a given
-// highlight class, so the direction isn't conveyed by color alone (WCAG 1.4.1).
-export function highlightLabelFor(highlightClass) {
-  if (highlightClass === 'highlight-topup') return '↑ topup'
-  if (highlightClass === 'highlight-transfer-out') return '↓ to savings'
+// Determines which leg of a transfer pair this transaction is (savings->spending
+// "topup" vs spending->savings), preserved from the old direction-specific logic so
+// the underlying leg detection still exists even though both legs now render with the
+// same neutral row background. Returns null for non-transfer transactions.
+export function transferLegFor(txn) {
+  if (!txn.is_transfer) return null
+
+  const isSavingsToSpendingLeg =
+    (txn.category === 'transfer-in' && txn.account_id === ACCOUNTS.SPENDING) ||
+    (txn.category === 'transfer-out' && txn.account_id === ACCOUNTS.SAVINGS)
+  if (isSavingsToSpendingLeg) return 'topup'
+
+  const isSpendingToSavingsLeg =
+    (txn.category === 'transfer-out' && txn.account_id === ACCOUNTS.SPENDING) ||
+    (txn.category === 'transfer-in' && txn.account_id === ACCOUNTS.SAVINGS)
+  if (isSpendingToSavingsLeg) return 'transfer-out'
+
   return null
+}
+
+// Returns a small IN/OUT text badge for a transfer leg, colored green/red by direction
+// (matches the mockup's t.transferLabel / t.labelColor). Non-color text cue for WCAG 1.4.1.
+export function transferBadgeFor(txn) {
+  if (!txn.is_transfer) return null
+  return {
+    text: txn.direction === 'in' ? 'IN' : 'OUT',
+    color: txn.direction === 'in' ? 'var(--green)' : 'var(--red)',
+  }
 }

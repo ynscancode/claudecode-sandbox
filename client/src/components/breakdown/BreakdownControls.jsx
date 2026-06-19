@@ -1,15 +1,21 @@
-export default function BreakdownControls({ showCash, showPercent, onToggleCash, onTogglePercent }) {
+const MODES = [['cash', 'Cash'], ['percent', '%'], ['both', 'Both']]
+
+export default function BreakdownControls({ mode, onModeChange }) {
   return (
-    <div className="breakdown-controls">
-      <fieldset>
-        <legend>Display as</legend>
-        <label>
-          <input type="checkbox" checked={showCash} onChange={onToggleCash} /> Cash value
-        </label>
-        <label>
-          <input type="checkbox" checked={showPercent} onChange={onTogglePercent} /> Percentage
-        </label>
-      </fieldset>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <span className="filter-strip-label">Show</span>
+      <div className="pill-group">
+        {MODES.map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            className={`pill-btn ${mode === key ? 'active' : ''}`}
+            onClick={() => onModeChange(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

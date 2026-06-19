@@ -21,7 +21,27 @@ export function getDailySummary(date) {
     `)
     .all(date);
 
-  return { date, combined, perAccount };
+  const byCategoryOut = db
+    .prepare(`
+      SELECT category, SUM(amount) AS total
+      FROM transactions
+      WHERE date = ? AND direction = 'out' AND is_transfer = 0
+      GROUP BY category
+      ORDER BY total DESC
+    `)
+    .all(date);
+
+  const byCategoryIn = db
+    .prepare(`
+      SELECT category, SUM(amount) AS total
+      FROM transactions
+      WHERE date = ? AND direction = 'in' AND is_transfer = 0
+      GROUP BY category
+      ORDER BY total DESC
+    `)
+    .all(date);
+
+  return { date, combined, perAccount, byCategoryIn, byCategoryOut };
 }
 
 export function getDailySummariesForRange(from, to) {

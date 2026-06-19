@@ -5,12 +5,14 @@ import { formatCurrency, formatInflow, formatOutflow } from '../../utils/format.
 
 function TotalRow({ label, totalIn, totalOut, balance, indent }) {
   return (
-    <tr className={`daily-total-row ${indent ? 'indent' : ''}`}>
-      <td colSpan={2}>{label}</td>
-      <td className="col-amount in">{formatInflow(totalIn)}</td>
-      <td className="col-amount out">{formatOutflow(totalOut)}</td>
+    <tr className="day-total-row">
+      <td colSpan={2} className={indent ? 'day-total-label' : ''} style={indent ? { paddingLeft: 24 } : undefined}>
+        {label}
+      </td>
+      <td className="col-amount cell-in">{formatInflow(totalIn)}</td>
+      <td className="col-amount cell-out">{formatOutflow(totalOut)}</td>
       <td></td>
-      <td className="col-amount"><strong>{formatCurrency(balance)}</strong></td>
+      <td className="col-amount">{formatCurrency(balance)}</td>
       <td></td>
     </tr>
   )
@@ -27,8 +29,15 @@ export default function DayGroup({ date, txns, onEdit, onDelete }) {
 
   return (
     <>
-      <tr className="day-header">
-        <td colSpan={7}>{dayLabel(date)}</td>
+      <tr>
+        <td colSpan={7} className="day-header-cell">
+          <div className="day-header-row-inner">
+            <span className="day-header-label">{dayLabel(date)}</span>
+            <span className="day-header-totals">
+              in {formatInflow(totals.combined.in)} &nbsp;&middot;&nbsp; out {formatOutflow(totals.combined.out)}
+            </span>
+          </div>
+        </td>
       </tr>
       {txns.map((txn) => (
         <TransactionRow key={txn.id} txn={txn} onEdit={onEdit} onDelete={onDelete} />

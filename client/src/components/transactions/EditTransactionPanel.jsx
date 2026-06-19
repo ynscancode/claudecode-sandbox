@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Check, X } from 'lucide-react'
 
 export default function EditTransactionPanel({ txn, onSave, onCancel }) {
   const [date, setDate] = useState(txn.date)
@@ -23,25 +22,27 @@ export default function EditTransactionPanel({ txn, onSave, onCancel }) {
   }
 
   return (
-    <div className="card" style={{ marginBottom: 16 }}>
-      <h3 className="edit-panel-title">Edit transaction{txn.is_transfer ? ' (transfer - both legs will update)' : ''}</h3>
-      <form className="txn-form" onSubmit={handleSubmit}>
-        <label>
+    <div className="edit-panel">
+      <div className="edit-panel-title">
+        Edit transaction{txn.is_transfer ? ' (transfer — both legs will update)' : ''}
+      </div>
+      <form className="edit-panel-form" onSubmit={handleSubmit}>
+        <label className="form-field">
           Date
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
         </label>
-        <label>
+        <label className="form-field amount">
           Amount
           <input type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required />
         </label>
-        <label>
-          Comment
+        <label className="form-field grow">
+          Note
           <input type="text" value={comment} onChange={(e) => setComment(e.target.value)} />
         </label>
-        <button type="submit" className="btn-with-icon"><Check size={16} aria-hidden="true" /> Save</button>
-        <button type="button" className="btn btn-with-icon btn-neutral" onClick={onCancel}><X size={16} aria-hidden="true" /> Cancel</button>
-        {error && <span className="error-text" role="alert">{error}</span>}
+        <button type="submit" className="btn">Save</button>
+        <button type="button" className="btn-ghost" onClick={onCancel}>Cancel</button>
       </form>
+      {error && <span className="error-text" role="alert">{error}</span>}
     </div>
   )
 }
