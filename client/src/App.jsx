@@ -4,7 +4,6 @@ import { CategoriesProvider } from './contexts/CategoriesContext.jsx'
 import Header from './components/layout/Header.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
 import TransactionsPage from './pages/TransactionsPage.jsx'
-import BreakdownPage from './pages/BreakdownPage.jsx'
 import BudgetPage from './pages/BudgetPage.jsx'
 
 function App() {
@@ -17,10 +16,14 @@ function App() {
             <Routes>
               <Route path="/" element={<DashboardPage />} />
               <Route path="/transactions" element={<TransactionsPage />} />
-              <Route path="/breakdown" element={<BreakdownPage />} />
               <Route path="/budget" element={<BudgetPage />} />
             </Routes>
           </main>
+          {/* Modal portal target: sibling of app-main (not a descendant of any
+              page's .page-animate wrapper, which has a transform-animation that
+              would otherwise hijack position:fixed children), but still inside
+              app-root so theme CSS custom properties cascade in correctly. */}
+          <div id="modal-root" />
         </div>
       </CategoriesProvider>
     </ThemeProvider>

@@ -37,6 +37,15 @@ function runMigrations() {
     const sql = fs.readFileSync(migrationPath, 'utf8');
     db.exec(sql);
   }
+
+  const hasCategoryAccountIdColumn = db
+    .prepare("SELECT 1 FROM pragma_table_info('categories') WHERE name = 'account_id'")
+    .get();
+  if (!hasCategoryAccountIdColumn) {
+    const migrationPath = path.join(__dirname, 'migrations', '004_category_accounts.sql');
+    const sql = fs.readFileSync(migrationPath, 'utf8');
+    db.exec(sql);
+  }
 }
 
 runMigrations();

@@ -7,6 +7,18 @@
   --font-xl:   1.375rem;   /* 22px */
   --font-2xl:  1.75rem;    /* 28px */
 
+  /* Width reserved for the accounting-parens ")" gutter in .balance-cell
+     values (see .balance-amount / .balance-paren) — wide enough for a
+     tabular-nums ")" glyph at the balance column's font sizes. */
+  --balance-paren-w: 0.6em;
+
+  /* Fixed-width gutter reserved to the right of the OUT-column amount for
+     the optional spend-warning dot (see .amount-with-flag /
+     .spend-warning-dot-slot) — always reserved, present or not, so the
+     dot's presence never shifts the amount's digits left. Sized to the
+     dot's own width (8px) plus its gap from the amount (6px). */
+  --spend-dot-gutter-w: 14px;
+
   /* Semantic aliases used widely below; map onto the active theme's tokens
      (set inline per-instance by ThemeProvider) so existing component logic
      (highlight.js etc.) keeps working unchanged. */
@@ -412,6 +424,29 @@ select {
   color: var(--accent);
 }
 
+.pill-tag-editable {
+  background: none;
+  border: 1px dashed var(--border);
+  cursor: pointer;
+}
+
+.pill-tag-editable:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.daily-budget-editor {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.daily-budget-editor input {
+  width: 80px;
+  padding: 4px 8px;
+  font: 600 11.5px/1 var(--font-num);
+}
+
 /* ---------- Monthly insights / bar chart ---------- */
 
 .money-flow-grid {
@@ -554,6 +589,14 @@ select {
   height: 9px;
   border-radius: 2px;
   flex: none;
+}
+
+.activity-category {
+  font: 500 12px/1.2 var(--font-ui);
+  color: var(--text);
+  text-transform: capitalize;
+  flex: none;
+  white-space: nowrap;
 }
 
 .activity-main {
@@ -705,11 +748,6 @@ td {
   letter-spacing: -0.01em;
 }
 
-.day-header-totals {
-  font: 500 11.5px/1 var(--font-num);
-  color: var(--muted);
-}
-
 .txn-row td {
   border-bottom: 1px solid var(--border-strong);
 }
@@ -722,11 +760,24 @@ td {
   background: color-mix(in oklab, var(--surface-2) 50%, transparent);
 }
 
+/* The OUT cell's amount + spend-warning dot. The dot gutter is always
+   reserved at a fixed width (--spend-dot-gutter-w) regardless of whether a
+   dot is rendered, so the amount's last digit lands at the same x-position
+   whether or not this row has a warning dot. The amount itself additionally
+   reserves the accounting-paren gutter (.accounting-amount) so the
+   right-to-left layout is: [digits][")" gutter][dot gutter]. */
 .amount-with-flag {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+}
+
+.spend-warning-dot-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--spend-dot-gutter-w);
+  flex: none;
 }
 
 .spend-warning-dot {
@@ -810,6 +861,28 @@ td {
   font-size: 13px;
 }
 
+/* Reserve a fixed-width right-edge gutter so a closing ")" on an
+   accounting-style value (balance or outflow) doesn't shift its digits left
+   of a value with no paren. The cell itself stays right-aligned
+   (.col-amount); this inline wrapper reserves --balance-paren-w of right
+   padding for the ")" character (rendered as an absolutely-positioned
+   overlay) so every value's last digit lands at the same x-position whether
+   or not a paren follows it. Shared by .balance-cell (BalanceValue) and the
+   OUT column (AccountingValue fed formatOutflow). */
+.accounting-amount {
+  position: relative;
+  display: inline-block;
+  padding-right: var(--balance-paren-w);
+}
+
+.accounting-paren {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: var(--balance-paren-w);
+  text-align: left;
+}
+
 .actions-cell {
   white-space: nowrap;
   text-align: right;
@@ -819,26 +892,49 @@ td {
   margin-left: 4px;
 }
 
-/* ---------- Edit panel ---------- */
+/* ---------- Inline row editing (Transactions tab) ---------- */
 
-.edit-panel {
+.txn-row-editing td {
+  padding-top: 6px;
+  padding-bottom: 6px;
   background: var(--accent-soft);
-  border: 1px solid var(--accent-border);
-  border-radius: var(--radius);
-  padding: 18px 20px;
-  margin-bottom: 16px;
 }
 
-.edit-panel-title {
-  font: 600 14px/1 var(--font-ui);
-  margin: 0 0 14px;
+.inline-edit-input {
+  padding: 6px 8px;
+  font-size: var(--font-sm);
+  width: 100%;
 }
 
-.edit-panel-form {
+.inline-edit-amount {
+  width: 90px;
+  text-align: right;
+  font-family: var(--font-num);
+}
+
+.inline-edit-comment-group {
   display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  align-items: flex-end;
+  gap: 6px;
+  align-items: center;
+}
+
+.inline-edit-date {
+  width: 130px;
+  flex: none;
+}
+
+.inline-edit-comment {
+  flex: 1;
+  min-width: 100px;
+}
+
+.txn-row-error-row td {
+  padding: 0 12px 10px;
+  background: var(--accent-soft);
+}
+
+.txn-row-error-row .error-text {
+  margin-top: 0;
 }
 
 .form-field {
@@ -854,16 +950,6 @@ td {
 .form-field input,
 .form-field select {
   font: 400 14px/1.2 var(--font-ui);
-}
-
-.form-field.amount input {
-  width: 120px;
-  font-family: var(--font-num);
-}
-
-.form-field.grow {
-  flex: 1;
-  min-width: 160px;
 }
 
 /* ---------- Loading / errors ---------- */
@@ -885,30 +971,7 @@ td {
   font-size: var(--font-sm);
 }
 
-/* ---------- Breakdown page ---------- */
-
-.breakdown-header-controls {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.breakdown-select-label {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.breakdown-select {
-  padding: 9px 13px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text);
-  font: 600 13px/1 var(--font-ui);
-  cursor: pointer;
-}
+/* ---------- Breakdown section (bottom of Overview) ---------- */
 
 .donut-card-head {
   display: flex;
@@ -936,6 +999,54 @@ td {
   gap: 24px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+/* ---------- In vs. out comparison bars (Breakdown section) ---------- */
+
+.inout-compare {
+  display: flex;
+  justify-content: center;
+  gap: 48px;
+  height: 140px;
+}
+
+.inout-compare-bar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 64px;
+}
+
+.inout-compare-track {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  height: 100px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.inout-compare-fill {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  transition: height 0.5s ease;
+}
+
+.inout-compare-value {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 13.5px;
+  margin-top: 8px;
+}
+
+.inout-compare-label {
+  font: 600 10.5px/1 var(--font-num);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 2px;
 }
 
 .donut-wrap {

@@ -4,8 +4,15 @@ import { dayLabel } from './dateUtils.js'
 // transactions (real spend only — transfers excluded) plus the current day
 // number and days-in-month. All computation is client-side; no new backend
 // endpoint needed since /transactions already gives us everything required.
+//
+// `dailyBudget` is number | null — null means "no daily budget configured".
+// When null, every budget-relative figure (over/under flags, %-vs-target,
+// days-on-budget) is suppressed/neutralized; the non-budget stats (spent
+// today amount, daily average amount, busiest day, projected month) are
+// computed the same either way.
 export function computeDailyInsights(monthTransactions, { todayDate, dailyBudget }) {
   const todayDay = Number(todayDate.slice(8, 10))
+  const hasBudget = dailyBudget !== null && dailyBudget !== undefined
 
   const realOut = monthTransactions.filter((t) => t.direction === 'out' && !t.is_transfer)
 
@@ -31,28 +38,32 @@ export function computeDailyInsights(monthTransactions, { todayDate, dailyBudget
   const projectedMonth = dailyAverage * 30
 
   const daysConsidered = activeDays.length || 1
-  const daysOnBudget = activeDays.filter((d) => (byDay[d] || 0) <= dailyBudget).length
+  const daysOnBudget = hasBudget
+    ? activeDays.filter((d) => (byDay[d] || 0) <= dailyBudget).length
+    : null
 
   const monthPrefix = monthTransactions[0]?.date.slice(0, 7) ?? todayDate.slice(0, 7)
   const busiestDayLabel = activeDays.length
     ? dayLabel(`${monthPrefix}-${String(busiestDay).padStart(2, '0')}`)
     : '—'
 
-  const todayOver = spentToday > dailyBudget
-  const avgOver = dailyAverage > dailyBudget
+  const todayOver = hasBudget && spentToday > dailyBudget
+  const avgOver = hasBudget && dailyAverage > dailyBudget
 
   return {
     spentToday,
     spentTodayOver: todayOver,
-    spentTodayNote: todayOver
-      ? `over budget by`
-      : `left of budget`,
-    spentTodayNoteAmount: todayOver ? spentToday - dailyBudget : dailyBudget - spentToday,
+    spentTodayNote: !hasBudget
+      ? null
+      : (todayOver ? `over budget by` : `left of budget`),
+    spentTodayNoteAmount: hasBudget
+      ? (todayOver ? spentToday - dailyBudget : dailyBudget - spentToday)
+      : null,
     dailyAverage,
     dailyAverageOver: avgOver,
-    dailyAveragePct: dailyBudget > 0
+    dailyAveragePct: hasBudget && dailyBudget > 0
       ? Math.round(Math.abs((dailyAverage / dailyBudget - 1)) * 100)
-      : 0,
+      : null,
     busiestDay,
     busiestDayAmount,
     busiestDayLabel,

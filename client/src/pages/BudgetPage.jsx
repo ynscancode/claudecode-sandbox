@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client.js'
 import { currentMonthStr, monthLabel } from '../utils/dateUtils.js'
 import { formatCurrency } from '../utils/format.js'
+import { ACCOUNTS } from '../constants/categories.js'
 import { useCategories } from '../contexts/categories.js'
 import MonthSwitcher from '../components/layout/MonthSwitcher.jsx'
+import { fillColorFor, suffixFor } from '../utils/budgetHealth.js'
 
 // Budget health classification shared by the editing list and the chart.
 // unset budgets are excluded from over/near math entirely (no health at all).
@@ -16,21 +18,9 @@ function healthFor(actual, budget) {
   return 'under'
 }
 
-function fillColorFor(health) {
-  if (health === 'over') return 'var(--red)'
-  if (health === 'near') return 'var(--warning)'
-  if (health === 'under') return 'var(--green)'
-  return 'var(--accent)' // unset
-}
-
-function suffixFor(health) {
-  if (health === 'over') return { text: ' — over', color: 'var(--red)' }
-  if (health === 'near') return { text: ' — near limit', color: 'var(--warning-text)' }
-  return null
-}
-
 export default function BudgetPage() {
-  const { outgoing, colorFor } = useCategories()
+  const { outgoingFor, colorFor } = useCategories()
+  const outgoing = outgoingFor(ACCOUNTS.SPENDING)
   const [month, setMonth] = useState(currentMonthStr())
   const [summary, setSummary] = useState(null)
   const [budgetsByCategory, setBudgetsByCategory] = useState({})
@@ -70,7 +60,7 @@ export default function BudgetPage() {
     const budget = Object.prototype.hasOwnProperty.call(budgetsByCategory, category)
       ? budgetsByCategory[category]
       : null
-    return { category, actual, budget, health: healthFor(actual, budget), color: colorFor(category) }
+    return { category, actual, budget, health: healthFor(actual, budget), color: colorFor(ACCOUNTS.SPENDING, category) }
   })
 
   const maxActual = Math.max(1, ...rows.map((r) => r.actual))
@@ -122,15 +112,6 @@ export default function BudgetPage() {
     }
   }
 
-  const chartRows = rows
-    .filter((r) => r.budget != null)
-    .sort((a, b) => {
-      const pctA = a.budget > 0 ? a.actual / a.budget : (a.actual > 0 ? Infinity : 0)
-      const pctB = b.budget > 0 ? b.actual / b.budget : (b.actual > 0 ? Infinity : 0)
-      return pctB - pctA
-    })
-  const overCount = chartRows.filter((r) => r.health === 'over').length
-
   return (
     <div className="page-animate">
       <div className="page-header-row">
@@ -175,20 +156,15 @@ export default function BudgetPage() {
 
               <div className="budget-row-bars">
                 {row.budget != null ? (
-                  <>
-                    <div className="cat-bar-track thin">
-                      <div className="cat-bar-fill" style={{ width: '100%', background: 'var(--border-strong)' }} />
-                    </div>
-                    <div className="cat-bar-track">
-                      <div
-                        className="cat-bar-fill"
-                        style={{
-                          width: `${row.budget > 0 ? Math.min(100, Math.round((row.actual / row.budget) * 100)) : (row.actual > 0 ? 100 : 0)}%`,
-                          background: fillColorFor(row.health),
-                        }}
-                      />
-                    </div>
-                  </>
+                  <div className="cat-bar-track">
+                    <div
+                      className="cat-bar-fill"
+                      style={{
+                        width: `${row.budget > 0 ? Math.min(100, Math.round((row.actual / row.budget) * 100)) : (row.actual > 0 ? 100 : 0)}%`,
+                        background: fillColorFor(row.health),
+                      }}
+                    />
+                  </div>
                 ) : (
                   <>
                     <div className="cat-bar-track">
@@ -238,55 +214,6 @@ export default function BudgetPage() {
             </div>
           )
         })}
-      </div>
-
-      <div className="card">
-        <div className="card-row">
-          <h2>Budget vs. actual</h2>
-          {overCount > 0 && <span className="pill-tag">{overCount} over budget</span>}
-        </div>
-
-        {chartRows.length === 0 ? (
-          <p className="empty-text">No budgets set for {monthLabel(month)}. Set a budget above to see it here.</p>
-        ) : (
-          <>
-            <div className="budget-legend">
-              <span className="budget-legend-item"><span className="cat-bar-row-swatch" style={{ background: 'var(--green)' }} /> Under</span>
-              <span className="budget-legend-item"><span className="cat-bar-row-swatch" style={{ background: 'var(--warning)' }} /> Near</span>
-              <span className="budget-legend-item"><span className="cat-bar-row-swatch" style={{ background: 'var(--red)' }} /> Over</span>
-            </div>
-            {chartRows.map((row) => {
-              const suffix = suffixFor(row.health)
-              const pct = row.budget > 0 ? Math.round((row.actual / row.budget) * 100) : (row.actual > 0 ? 100 : 0)
-              return (
-                <div className="cat-bar-row" key={row.category}>
-                  <div className="cat-bar-row-head">
-                    <span className="cat-bar-row-label">
-                      <span className="cat-bar-row-swatch" style={{ background: row.color }} />
-                      {row.category}
-                    </span>
-                    <span className="cat-bar-row-value" style={{ color: row.health === 'over' ? 'var(--red)' : 'var(--muted)' }}>
-                      {formatCurrency(row.actual)} of {formatCurrency(row.budget)} ({pct}%)
-                      {suffix && <span style={{ color: suffix.color }}>{suffix.text}</span>}
-                    </span>
-                  </div>
-                  <div className="cat-bar-track thin">
-                    <div className="cat-bar-fill" style={{ width: '100%', background: 'var(--border-strong)' }} />
-                  </div>
-                  <div className="cat-bar-track">
-                    <div
-                      className="cat-bar-fill"
-                      style={{
-                        width: `${row.budget > 0 ? Math.min(100, Math.round((row.actual / row.budget) * 100)) : (row.actual > 0 ? 100 : 0)}%`,
-                        background: fillColorFor(row.health),
-                      }}
-                    />
-                  </div>
-                </div>
-              )
-            })}
-          </>
-        )}
       </div>
     </div>
   )

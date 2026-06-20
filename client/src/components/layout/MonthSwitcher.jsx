@@ -1,9 +1,10 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { monthLabel, prevMonthStr, nextMonthStr } from '../../utils/dateUtils.js'
 
-// Reusable prev/next month stepper. Unlike BreakdownPage's <select> (which is
-// constrained to months with real transaction history), this lets the caller
-// navigate to any month — used by BudgetPage where every month is editable.
+// Reusable prev/next month stepper that lets the caller navigate to any
+// month, regardless of transaction history — used by BudgetPage, where every
+// month is editable (Overview, by contrast, is locked to the current month
+// and has no month picker at all).
 export default function MonthSwitcher({ month, onChange }) {
   return (
     <div className="month-switcher">

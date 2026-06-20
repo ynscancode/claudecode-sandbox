@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback } from 'react'
 import { api } from '../api/client.js'
 import TransactionList from '../components/transactions/TransactionList.jsx'
 import TransactionModal from '../components/transactions/TransactionModal.jsx'
-import EditTransactionPanel from '../components/transactions/EditTransactionPanel.jsx'
 import { currentMonthStr, monthRangeFor, monthLabel } from '../utils/dateUtils.js'
 import { formatCurrency } from '../utils/format.js'
 import { ACCOUNT_NAMES } from '../constants/categories.js'
@@ -15,7 +14,7 @@ export default function TransactionsPage() {
   const [transactions, setTransactions] = useState([])
   const [accounts, setAccounts] = useState([])
   const [loading, setLoading] = useState(true)
-  const [editingTxn, setEditingTxn] = useState(null)
+  const [editingId, setEditingId] = useState(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState('normal')
 
@@ -54,7 +53,7 @@ export default function TransactionsPage() {
 
   async function handleSaveEdit(id, data) {
     await api.updateTransaction(id, data)
-    setEditingTxn(null)
+    setEditingId(null)
     await loadTransactions()
   }
 
@@ -106,14 +105,6 @@ export default function TransactionsPage() {
         </div>
       </div>
 
-      {editingTxn && (
-        <EditTransactionPanel
-          txn={editingTxn}
-          onSave={handleSaveEdit}
-          onCancel={() => setEditingTxn(null)}
-        />
-      )}
-
       <div className="account-summary-strip">
         {accounts.map((account) => (
           <div className="account-summary-item" key={account.id}>
@@ -128,7 +119,10 @@ export default function TransactionsPage() {
       ) : (
         <TransactionList
           transactions={transactions}
-          onEdit={setEditingTxn}
+          editingId={editingId}
+          onEdit={setEditingId}
+          onSaveEdit={handleSaveEdit}
+          onCancelEdit={() => setEditingId(null)}
           onDelete={handleDelete}
         />
       )}

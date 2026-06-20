@@ -26,7 +26,7 @@ function assertValidNormalTransaction({ date, account_id, direction, category, a
   if (TRANSFER_CATEGORIES.includes(category)) {
     throw new ValidationError('transfer categories cannot be set on normal transactions');
   }
-  if (!isValidNormalCategory(category, direction)) {
+  if (!isValidNormalCategory(category, direction, account_id)) {
     throw new ValidationError(`category "${category}" is not valid for direction "${direction}"`);
   }
   if (typeof amount !== 'number' || amount <= 0) {
@@ -98,7 +98,7 @@ export function createTransfer({ date, from_account_id, to_account_id, amount, c
   return txn();
 }
 
-export function updateTransaction(id, { date, amount, comment }) {
+export function updateTransaction(id, { date, amount, comment, category }) {
   const existing = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id);
   if (!existing) {
     const err = new Error('Transaction not found');
@@ -110,19 +110,32 @@ export function updateTransaction(id, { date, amount, comment }) {
     throw new ValidationError('amount must be a positive number');
   }
 
+  if (category != null) {
+    if (existing.is_transfer) {
+      throw new ValidationError('category cannot be changed on a transfer');
+    }
+    if (TRANSFER_CATEGORIES.includes(category)) {
+      throw new ValidationError('transfer categories cannot be set on normal transactions');
+    }
+    if (!isValidNormalCategory(category, existing.direction, existing.account_id)) {
+      throw new ValidationError(`category "${category}" is not valid for direction "${existing.direction}"`);
+    }
+  }
+
   const updates = {
     date: date ?? existing.date,
     amount: amount ?? existing.amount,
     comment: comment ?? existing.comment,
+    category: category ?? existing.category,
   };
 
   const txn = db.transaction(() => {
-    db.prepare('UPDATE transactions SET date = @date, amount = @amount, comment = @comment WHERE id = @id')
+    db.prepare('UPDATE transactions SET date = @date, amount = @amount, comment = @comment, category = @category WHERE id = @id')
       .run({ ...updates, id });
 
     if (existing.is_transfer && existing.linked_transaction_id) {
       db.prepare('UPDATE transactions SET date = @date, amount = @amount, comment = @comment WHERE id = @id')
-        .run({ ...updates, id: existing.linked_transaction_id });
+        .run({ date: updates.date, amount: updates.amount, comment: updates.comment, id: existing.linked_transaction_id });
     }
   });
   txn();

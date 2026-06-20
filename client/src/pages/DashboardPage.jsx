@@ -4,23 +4,102 @@ import { todayStr, currentMonthStr, monthRangeFor, monthLabel, dayLabel } from '
 import { formatCurrency, formatSigned } from '../utils/format.js'
 import { computeDailyInsights } from '../utils/insights.js'
 import { ACCOUNTS, ACCOUNT_NAMES } from '../constants/categories.js'
-import { DAILY_BUDGET } from '../constants/budget.js'
+import { useDailyBudget } from '../hooks/useDailyBudget.js'
 import { useCategories } from '../contexts/categories.js'
 import TransactionModal from '../components/transactions/TransactionModal.jsx'
+import DonutChart from '../components/breakdown/DonutChart.jsx'
+import { buildDonutSegments } from '../utils/donutMath.js'
+import CategoryBarList from '../components/breakdown/CategoryBarList.jsx'
+import BreakdownControls from '../components/breakdown/BreakdownControls.jsx'
+import { fillColorFor, suffixFor } from '../utils/budgetHealth.js'
 
 function daysInMonth(monthStr) {
   const [year, month] = monthStr.split('-').map(Number)
   return new Date(year, month, 0).getDate()
 }
 
+// Derive a category breakdown for one account from the raw transaction
+// list, excluding transfers (internal movement, not real income/spend).
+function breakdownFor(transactions, accountId, direction, colorFor) {
+  const totals = {}
+  transactions.forEach((t) => {
+    if (t.account_id !== accountId || t.is_transfer || t.direction !== direction) return
+    totals[t.category] = (totals[t.category] || 0) + t.amount
+  })
+  return Object.entries(totals)
+    .map(([category, value]) => ({ category, value, color: colorFor(category) }))
+    .sort((a, b) => b.value - a.value)
+}
+
+// Simple two-bar money-in vs money-out comparison for one account, scaled
+// relative to whichever of the two totals is larger. Bars are vertical to
+// sit naturally alongside the donut pair above. Always shows both labels
+// and dollar values so the comparison isn't color-only.
+function InOutCompareCard({ totalIn, totalOut }) {
+  const max = Math.max(totalIn, totalOut)
+  const heightFor = (value) => (max > 0 ? Math.max(4, Math.round((value / max) * 100)) : 4)
+  return (
+    <div className="card" style={{ marginBottom: 0 }}>
+      <h2 style={{ margin: '0 0 18px', font: '600 16px/1 var(--font-ui)', letterSpacing: '-.01em' }}>In vs. out</h2>
+      <div className="inout-compare">
+        <div className="inout-compare-bar-col">
+          <div className="inout-compare-track">
+            <div
+              className="inout-compare-fill"
+              style={{ height: `${heightFor(totalOut)}%`, background: 'var(--red)' }}
+            />
+          </div>
+          <div className="inout-compare-value" style={{ color: 'var(--red)' }}>{formatCurrency(totalOut)}</div>
+          <div className="inout-compare-label">Money out</div>
+        </div>
+        <div className="inout-compare-bar-col">
+          <div className="inout-compare-track">
+            <div
+              className="inout-compare-fill"
+              style={{ height: `${heightFor(totalIn)}%`, background: 'var(--green)' }}
+            />
+          </div>
+          <div className="inout-compare-value" style={{ color: 'var(--green)' }}>{formatCurrency(totalIn)}</div>
+          <div className="inout-compare-label">Money in</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DonutCard({ icon, iconColor, label, centerLabel, cats, mode }) {
+  const total = cats.reduce((s, c) => s + c.value, 0)
+  const donut = buildDonutSegments(cats, total)
+  return (
+    <div className="card" style={{ marginBottom: 0 }}>
+      <div className="donut-card-head">
+        <h2><span style={{ color: iconColor }}>{icon}</span> {label}</h2>
+        <span className="donut-card-total">{formatCurrency(total)}</span>
+      </div>
+      <div className="donut-layout">
+        <DonutChart segments={donut} centerLabel={centerLabel} centerValue={formatCurrency(total)} />
+        <CategoryBarList categories={cats} total={total} mode={mode} />
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardPage() {
-  const { outgoing, colorFor } = useCategories()
+  const { outgoingFor, colorFor } = useCategories()
   const [accounts, setAccounts] = useState([])
   const [monthTransactions, setMonthTransactions] = useState([])
   const [budgets, setBudgets] = useState([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
-  const [scopeAccountId, setScopeAccountId] = useState(ACCOUNTS.SPENDING)
+  const [breakdownMode, setBreakdownMode] = useState('both')
+  const [dailyBudget, setDailyBudget] = useDailyBudget()
+  const [editingBudget, setEditingBudget] = useState(false)
+  const [budgetDraft, setBudgetDraft] = useState('')
+
+  // Overview is Spending-only by design — there is no account selector on
+  // this page. The Breakdown section at the bottom is the one exception:
+  // it remains unscoped and always shows both accounts.
+  const scopeAccountId = ACCOUNTS.SPENDING
 
   const month = currentMonthStr()
   const today = todayStr()
@@ -52,6 +131,34 @@ export default function DashboardPage() {
   async function handleCreateTransfer(data) {
     await api.createTransfer(data)
     await loadAll()
+  }
+
+  function startEditingBudget() {
+    setBudgetDraft(dailyBudget != null ? String(dailyBudget) : '')
+    setEditingBudget(true)
+  }
+
+  function commitBudgetDraft() {
+    const value = budgetDraft.trim()
+    if (value === '') {
+      // Empty input on commit reverts (no-op) rather than clearing — use
+      // the explicit "No budget" action to clear.
+      setEditingBudget(false)
+      return
+    }
+    const amount = Number(value)
+    if (!Number.isFinite(amount) || amount < 0) {
+      // Reject garbage/negatives: revert to prior value, no crash.
+      setEditingBudget(false)
+      return
+    }
+    setDailyBudget(amount)
+    setEditingBudget(false)
+  }
+
+  function handleClearDailyBudget() {
+    setDailyBudget(null)
+    setEditingBudget(false)
   }
 
   if (loading) {
@@ -86,22 +193,27 @@ export default function DashboardPage() {
   const net = sumIn - sumOut
   const savingsRate = sumIn > 0 ? Math.round((net / sumIn) * 100) : 0
 
-  const insights = computeDailyInsights(scopedTransactions, { todayDate: today, dailyBudget: DAILY_BUDGET })
+  const insights = computeDailyInsights(scopedTransactions, { todayDate: today, dailyBudget })
+  const hasDailyBudget = dailyBudget !== null
 
   const dailyInsightTiles = [
     {
       label: 'Spent today',
       value: formatCurrency(insights.spentToday),
       valueColor: insights.spentTodayOver ? 'var(--red)' : 'var(--text)',
-      note: `${formatCurrency(insights.spentTodayNoteAmount)} ${insights.spentTodayNote}`,
-      noteColor: insights.spentTodayOver ? 'var(--red)' : 'var(--green)',
+      note: hasDailyBudget
+        ? `${formatCurrency(insights.spentTodayNoteAmount)} ${insights.spentTodayNote}`
+        : '—',
+      noteColor: insights.spentTodayOver ? 'var(--red)' : (hasDailyBudget ? 'var(--green)' : 'var(--muted)'),
     },
     {
       label: 'Daily average',
       value: formatCurrency(insights.dailyAverage),
       valueColor: 'var(--text)',
-      note: `${insights.dailyAveragePct}% ${insights.dailyAverageOver ? 'above target' : 'under target'}`,
-      noteColor: insights.dailyAverageOver ? 'var(--red)' : 'var(--green)',
+      note: hasDailyBudget
+        ? `${insights.dailyAveragePct}% ${insights.dailyAverageOver ? 'above target' : 'under target'}`
+        : 'No daily budget set',
+      noteColor: hasDailyBudget ? (insights.dailyAverageOver ? 'var(--red)' : 'var(--green)') : 'var(--muted)',
     },
     {
       label: 'Busiest day',
@@ -114,7 +226,9 @@ export default function DashboardPage() {
       label: 'Projected month',
       value: formatCurrency(insights.projectedMonth),
       valueColor: 'var(--text)',
-      note: `${insights.daysOnBudget} of ${insights.daysConsidered} days on budget`,
+      note: hasDailyBudget
+        ? `${insights.daysOnBudget} of ${insights.daysConsidered} days on budget`
+        : 'No daily budget set',
       noteColor: 'var(--muted)',
     },
   ]
@@ -127,21 +241,28 @@ export default function DashboardPage() {
     dayMap[d] = (dayMap[d] || 0) + t.amount
   })
   const totalDays = daysInMonth(month)
-  const maxDay = Math.max(1, DAILY_BUDGET, ...Object.values(dayMap))
-  const budgetPct = (DAILY_BUDGET / maxDay) * 100
+  // When no daily budget is set, scale off actual max spend only — no
+  // budget reference line to draw, and no "over" red-coloring since
+  // there's nothing to exceed.
+  const maxDay = hasDailyBudget
+    ? Math.max(1, dailyBudget, ...Object.values(dayMap))
+    : Math.max(1, ...Object.values(dayMap))
+  const budgetPct = hasDailyBudget ? (dailyBudget / maxDay) * 100 : null
   const dailyBars = Array.from({ length: totalDays }, (_, i) => {
     const v = dayMap[i + 1] || 0
     const h = Math.max(2, Math.round((v / maxDay) * 100))
-    const over = v > DAILY_BUDGET
+    const over = hasDailyBudget && v > dailyBudget
     const bg = v > 0 ? (over ? 'var(--red)' : 'var(--accent)') : 'var(--surface-2)'
     const opacity = v > 0 ? 0.55 + 0.45 * (v / maxDay) : 1
     return { height: h, bg, opacity }
   })
 
-  // Budget summary: only SET budgets count toward totals/percent (unset
-  // categories are excluded from both budgeted and spent sides per spec).
+  // Budget summary is Spending-only — budgeting doesn't apply to Savings.
+  // Only SET budgets count toward totals/percent (unset categories are
+  // excluded from both budgeted and spent sides per spec).
+  const spendingRealOut = monthTransactions.filter((t) => t.account_id === ACCOUNTS.SPENDING && t.direction === 'out' && !t.is_transfer)
   const catActualsMap = {}
-  realOut.forEach((t) => { catActualsMap[t.category] = (catActualsMap[t.category] || 0) + t.amount })
+  spendingRealOut.forEach((t) => { catActualsMap[t.category] = (catActualsMap[t.category] || 0) + t.amount })
   const budgetRows = budgets.map((b) => {
     const actual = catActualsMap[b.category] || 0
     const pct = b.amount > 0 ? Math.round((actual / b.amount) * 100) : (actual > 0 ? Infinity : 0)
@@ -153,18 +274,20 @@ export default function DashboardPage() {
   const totalBudgeted = budgetRows.reduce((s, r) => s + r.budget, 0)
   const totalSpentBudgeted = budgetRows.reduce((s, r) => s + r.actual, 0)
   const budgetUsedPct = totalBudgeted > 0 ? Math.round((totalSpentBudgeted / totalBudgeted) * 100) : 0
-  const qualifying = budgetRows.filter((r) => r.health === 'over' || r.health === 'near')
-  const overRows = qualifying.filter((r) => r.health === 'over').sort((a, b) => b.pct - a.pct)
-  const nearRows = qualifying.filter((r) => r.health === 'near').sort((a, b) => b.pct - a.pct)
-  const sortedQualifying = [...overRows, ...nearRows]
-  const topQualifying = sortedQualifying.slice(0, 3)
-  const extraQualifyingCount = sortedQualifying.length - topQualifying.length
+  // Full comparison, worst-first — this replaces the Budget page's old,
+  // now-deleted "Budget vs. actual" card so there's exactly one place to
+  // see budget vs. actual instead of two duplicated progress bars.
+  const chartRows = [...budgetRows].sort((a, b) => {
+    const pctA = a.budget > 0 ? a.actual / a.budget : (a.actual > 0 ? Infinity : 0)
+    const pctB = b.budget > 0 ? b.actual / b.budget : (b.actual > 0 ? Infinity : 0)
+    return pctB - pctA
+  })
 
   // Top spending by category (this month, real spend only).
   const catTotalsMap = {}
   realOut.forEach((t) => { catTotalsMap[t.category] = (catTotalsMap[t.category] || 0) + t.amount })
   const topCats = Object.entries(catTotalsMap)
-    .map(([category, value]) => ({ category, value, color: colorFor(category) }))
+    .map(([category, value]) => ({ category, value, color: colorFor(scopeAccountId, category) }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 6)
   const maxCat = Math.max(1, ...topCats.map((c) => c.value))
@@ -178,13 +301,25 @@ export default function DashboardPage() {
       const isTransfer = !!t.is_transfer
       return {
         id: t.id,
-        color: isTransfer ? 'var(--faint)' : colorFor(t.category),
+        color: isTransfer ? 'var(--faint)' : colorFor(t.account_id, t.category),
         comment: isTransfer ? 'Transfer' : t.comment,
+        category: isTransfer ? 'Transfer' : t.category,
         meta: dayLabel(t.date),
         amountText: formatSigned(signed),
         amountColor: signed >= 0 ? 'var(--green)' : 'var(--text)',
       }
     })
+
+  // Breakdown section: always shows both accounts, unaffected by the
+  // page being Spending-scoped elsewhere (same treatment as Net worth).
+  const spendOut = breakdownFor(monthTransactions, ACCOUNTS.SPENDING, 'out', (cat) => colorFor(ACCOUNTS.SPENDING, cat))
+  const spendIn = breakdownFor(monthTransactions, ACCOUNTS.SPENDING, 'in', (cat) => colorFor(ACCOUNTS.SPENDING, cat))
+  const saveOut = breakdownFor(monthTransactions, ACCOUNTS.SAVINGS, 'out', (cat) => colorFor(ACCOUNTS.SAVINGS, cat))
+  const saveIn = breakdownFor(monthTransactions, ACCOUNTS.SAVINGS, 'in', (cat) => colorFor(ACCOUNTS.SAVINGS, cat))
+  const spendTotalOut = spendOut.reduce((s, c) => s + c.value, 0)
+  const spendTotalIn = spendIn.reduce((s, c) => s + c.value, 0)
+  const saveTotalOut = saveOut.reduce((s, c) => s + c.value, 0)
+  const saveTotalIn = saveIn.reduce((s, c) => s + c.value, 0)
 
   return (
     <div className="page-animate">
@@ -194,18 +329,6 @@ export default function DashboardPage() {
           <h1 className="page-title">Overview</h1>
         </div>
         <div className="page-header-actions">
-          <div className="pill-group">
-            {[ACCOUNTS.SPENDING, ACCOUNTS.SAVINGS].map((id) => (
-              <button
-                key={id}
-                type="button"
-                className={`pill-btn ${scopeAccountId === id ? 'active' : ''}`}
-                onClick={() => setScopeAccountId(id)}
-              >
-                {ACCOUNT_NAMES[id]}
-              </button>
-            ))}
-          </div>
           <button type="button" className="btn" onClick={() => setModalOpen(true)}>+ Add transaction</button>
         </div>
       </div>
@@ -213,7 +336,49 @@ export default function DashboardPage() {
       <div className="card">
         <div className="card-row">
           <h2>Daily insights</h2>
-          <span className="pill-tag">Budget {formatCurrency(DAILY_BUDGET)}/day</span>
+          {editingBudget ? (
+            <div className="daily-budget-editor">
+              <label className="visually-hidden" htmlFor="daily-budget-input">Daily budget</label>
+              <input
+                id="daily-budget-input"
+                type="number"
+                step="0.01"
+                min="0"
+                autoFocus
+                placeholder="0.00"
+                value={budgetDraft}
+                onChange={(e) => setBudgetDraft(e.target.value)}
+                onBlur={commitBudgetDraft}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    commitBudgetDraft()
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault()
+                    setEditingBudget(false)
+                  }
+                }}
+              />
+              {hasDailyBudget && (
+                <button
+                  type="button"
+                  className="btn-sm btn-sm-delete"
+                  onMouseDown={(e) => { e.preventDefault(); handleClearDailyBudget() }}
+                  onClick={handleClearDailyBudget}
+                >
+                  No budget
+                </button>
+              )}
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="pill-tag pill-tag-editable"
+              onClick={startEditingBudget}
+            >
+              {hasDailyBudget ? `Budget ${formatCurrency(dailyBudget)}/day` : 'No daily budget'}
+            </button>
+          )}
         </div>
         <div className="card-grid tiles">
           {dailyInsightTiles.map((tile) => (
@@ -243,7 +408,7 @@ export default function DashboardPage() {
             <div className="stat-tile-label">Total budgeted</div>
             <div className="stat-tile-value">{formatCurrency(totalBudgeted)}</div>
             <div className="stat-tile-note" style={{ color: 'var(--muted)' }}>
-              {budgetRows.length} of {outgoing.length} categories set
+              {budgetRows.length} of {outgoingFor(ACCOUNTS.SPENDING).length} categories set
             </div>
           </div>
           <div className="stat-tile">
@@ -264,39 +429,37 @@ export default function DashboardPage() {
           <p className="empty-text" style={{ marginTop: 16 }}>
             No budgets set for {monthLabel(month)}. Go to the Budget tab to set one.
           </p>
-        ) : sortedQualifying.length === 0 ? (
-          <div className="activity-row" style={{ marginTop: 4 }}>
-            <span className="activity-dot" style={{ background: 'var(--green)' }} />
-            <div className="activity-main">
-              <div className="activity-comment">All budgeted categories are on track.</div>
-            </div>
-          </div>
         ) : (
-          <div style={{ marginTop: 4 }}>
-            {topQualifying.map((r) => {
-              const suffix = r.health === 'over' ? ' — over' : ' — near limit'
-              const suffixColor = r.health === 'over' ? 'var(--red)' : 'var(--warning-text)'
+          <div style={{ marginTop: 16 }}>
+            <div className="budget-legend">
+              <span className="budget-legend-item"><span className="cat-bar-row-swatch" style={{ background: 'var(--green)' }} /> Under</span>
+              <span className="budget-legend-item"><span className="cat-bar-row-swatch" style={{ background: 'var(--warning)' }} /> Near</span>
+              <span className="budget-legend-item"><span className="cat-bar-row-swatch" style={{ background: 'var(--red)' }} /> Over</span>
+            </div>
+            {chartRows.map((row) => {
+              const suffix = suffixFor(row.health)
+              const displayPct = Number.isFinite(row.pct) ? row.pct : 100
               return (
-                <div className="activity-row" key={r.category}>
-                  <span className="activity-dot" style={{ background: colorFor(r.category) }} />
-                  <div className="activity-main">
-                    <div className="activity-comment">{r.category}</div>
-                    <div className="activity-meta">
-                      {r.pct}% of {formatCurrency(r.budget)} budget
-                      <span style={{ color: suffixColor }}>{suffix}</span>
-                    </div>
+                <div className="cat-bar-row" key={row.category}>
+                  <div className="cat-bar-row-head">
+                    <span className="cat-bar-row-label">
+                      <span className="cat-bar-row-swatch" style={{ background: colorFor(ACCOUNTS.SPENDING, row.category) }} />
+                      {row.category}
+                    </span>
+                    <span className="cat-bar-row-value" style={{ color: row.health === 'over' ? 'var(--red)' : 'var(--muted)' }}>
+                      {formatCurrency(row.actual)} of {formatCurrency(row.budget)} ({displayPct}%)
+                      {suffix && <span style={{ color: suffix.color }}>{suffix.text}</span>}
+                    </span>
                   </div>
-                  <div className="activity-amount" style={{ color: r.health === 'over' ? 'var(--red)' : 'var(--warning-text)' }}>
-                    {formatCurrency(r.actual)}
+                  <div className="cat-bar-track">
+                    <div
+                      className="cat-bar-fill"
+                      style={{ width: `${Math.min(100, displayPct)}%`, background: fillColorFor(row.health) }}
+                    />
                   </div>
                 </div>
               )
             })}
-            {extraQualifyingCount > 0 && (
-              <div className="activity-meta" style={{ marginTop: 8 }}>
-                +{extraQualifyingCount} more over or near budget — see Budget tab
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -344,12 +507,14 @@ export default function DashboardPage() {
         <div style={{ marginTop: 24 }}>
           <div className="daily-spending-header">
             <span className="money-flow-label">Daily spending</span>
-            <span style={{ font: '500 10.5px/1 var(--font-num)', color: 'var(--accent)' }}>
-              Budget {formatCurrency(DAILY_BUDGET)}/day
+            <span style={{ font: '500 10.5px/1 var(--font-num)', color: hasDailyBudget ? 'var(--accent)' : 'var(--muted)' }}>
+              {hasDailyBudget ? `Budget ${formatCurrency(dailyBudget)}/day` : 'No daily budget'}
             </span>
           </div>
           <div className="bar-chart">
-            <div className="budget-line" style={{ bottom: `${Math.min(98, budgetPct)}%` }} />
+            {hasDailyBudget && (
+              <div className="budget-line" style={{ bottom: `${Math.min(98, budgetPct)}%` }} />
+            )}
             {dailyBars.map((bar, i) => (
               <div
                 key={i}
@@ -392,6 +557,7 @@ export default function DashboardPage() {
           ) : recent.map((r) => (
             <div className="activity-row" key={r.id}>
               <span className="activity-dot" style={{ background: r.color }} />
+              <span className="activity-category">{r.category}</span>
               <div className="activity-main">
                 <div className="activity-comment">{r.comment}</div>
                 <div className="activity-meta">{r.meta}</div>
@@ -400,6 +566,29 @@ export default function DashboardPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="card-row" style={{ marginTop: 30, marginBottom: 12 }}>
+        <h2 style={{ margin: 0, font: '600 16px/1 var(--font-ui)', letterSpacing: '-.01em' }}>Breakdown</h2>
+        <BreakdownControls mode={breakdownMode} onModeChange={setBreakdownMode} />
+      </div>
+
+      <div className="page-eyebrow">Spending</div>
+      <div className="two-col-grid">
+        <DonutCard icon="↑" iconColor="var(--red)" label="Money out" centerLabel="Spent" cats={spendOut} mode={breakdownMode} />
+        <DonutCard icon="↓" iconColor="var(--green)" label="Money in" centerLabel="Earned" cats={spendIn} mode={breakdownMode} />
+      </div>
+      <div style={{ marginTop: 16 }}>
+        <InOutCompareCard totalIn={spendTotalIn} totalOut={spendTotalOut} />
+      </div>
+
+      <div className="page-eyebrow" style={{ marginTop: 30 }}>Savings</div>
+      <div className="two-col-grid">
+        <DonutCard icon="↑" iconColor="var(--red)" label="Money out" centerLabel="Spent" cats={saveOut} mode={breakdownMode} />
+        <DonutCard icon="↓" iconColor="var(--green)" label="Money in" centerLabel="Earned" cats={saveIn} mode={breakdownMode} />
+      </div>
+      <div style={{ marginTop: 16 }}>
+        <InOutCompareCard totalIn={saveTotalIn} totalOut={saveTotalOut} />
       </div>
 
       {modalOpen && (

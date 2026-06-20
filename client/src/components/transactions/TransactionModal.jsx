@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ACCOUNTS, ACCOUNT_NAMES } from '../../constants/categories.js'
 import { todayStr } from '../../utils/dateUtils.js'
 import { useCategories } from '../../contexts/categories.js'
@@ -23,18 +24,19 @@ function emptyTransferForm() {
 // default-comment-per-direction with a commentTouched flag so switching
 // direction doesn't clobber a comment the user already edited).
 export default function TransactionModal({ initialMode = 'normal', onClose, onCreateTransaction, onCreateTransfer }) {
-  const { outgoing, incoming } = useCategories()
-  const outgoingNames = outgoing.map((c) => c.name)
-  const incomingNames = incoming.map((c) => c.name)
+  const { outgoingFor, incomingFor } = useCategories()
 
   const [mode, setMode] = useState(initialMode)
-  const [normalForm, setNormalForm] = useState(() => emptyNormalForm(outgoingNames))
+  const [normalForm, setNormalForm] = useState(() => emptyNormalForm(outgoingFor(ACCOUNTS.SPENDING).map((c) => c.name)))
   const [transferForm, setTransferForm] = useState(emptyTransferForm)
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [managerOpen, setManagerOpen] = useState(false)
   const manageLinkRef = useRef(null)
 
+  const selectedAccountId = Number(normalForm.account_id)
+  const outgoingNames = outgoingFor(selectedAccountId).map((c) => c.name)
+  const incomingNames = incomingFor(selectedAccountId).map((c) => c.name)
   const normalCategories = normalForm.direction === 'out' ? outgoingNames : incomingNames
   const selectedTransferDirection = TRANSFER_DIRECTIONS.find((d) => d.value === transferForm.directionKey)
   const transferToName = ACCOUNT_NAMES[selectedTransferDirection.to]
@@ -71,6 +73,13 @@ export default function TransactionModal({ initialMode = 'normal', onClose, onCr
   function handleDirectionChange(direction) {
     const allowed = direction === 'out' ? outgoingNames : incomingNames
     setNormalForm((f) => ({ ...f, direction, category: allowed[0] || '' }))
+    setError(null)
+  }
+
+  function handleAccountChange(accountIdStr) {
+    const accountId = Number(accountIdStr)
+    const allowed = normalForm.direction === 'out' ? outgoingFor(accountId).map((c) => c.name) : incomingFor(accountId).map((c) => c.name)
+    setNormalForm((f) => ({ ...f, account_id: accountIdStr, category: allowed[0] || '' }))
     setError(null)
   }
 
@@ -144,7 +153,9 @@ export default function TransactionModal({ initialMode = 'normal', onClose, onCr
     }
   }
 
-  return (
+  const portalTarget = document.getElementById('modal-root') || document.body
+
+  return createPortal(
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
@@ -177,7 +188,7 @@ export default function TransactionModal({ initialMode = 'normal', onClose, onCr
             </label>
             <label className="form-field">
               Account
-              <select value={normalForm.account_id} onChange={(e) => setNormalField('account_id', e.target.value)}>
+              <select value={normalForm.account_id} onChange={(e) => handleAccountChange(e.target.value)}>
                 {Object.entries(ACCOUNT_NAMES).map(([id, name]) => (
                   <option key={id} value={id}>{name}</option>
                 ))}
@@ -258,7 +269,8 @@ export default function TransactionModal({ initialMode = 'normal', onClose, onCr
         </div>
       </div>
 
-      {managerOpen && <CategoryManagerModal onClose={closeManager} />}
-    </div>
+      {managerOpen && <CategoryManagerModal accountId={selectedAccountId} onClose={closeManager} />}
+    </div>,
+    portalTarget
   )
 }

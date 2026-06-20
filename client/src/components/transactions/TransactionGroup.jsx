@@ -1,7 +1,7 @@
 import { monthLabel } from '../../utils/dateUtils.js'
 import DayGroup from './DayGroup.jsx'
 
-export default function TransactionGroup({ year, monthsMap, onEdit, onDelete }) {
+export default function TransactionGroup({ year, monthsMap, editingId, onEdit, onSaveEdit, onCancelEdit, onDelete }) {
   const months = [...monthsMap.entries()].sort(([a], [b]) => b.localeCompare(a))
 
   return (
@@ -26,7 +26,16 @@ export default function TransactionGroup({ year, monthsMap, onEdit, onDelete }) 
               <tbody>
                 <tr><td colSpan={7} style={{ padding: '4px 12px', color: 'var(--muted)', fontWeight: 600, fontSize: 'var(--font-sm)' }}>{monthLabel(month)}</td></tr>
                 {days.map(([day, txns]) => (
-                  <DayGroup key={day} date={day} txns={txns} onEdit={onEdit} onDelete={onDelete} />
+                  <DayGroup
+                    key={day}
+                    date={day}
+                    txns={txns}
+                    editingId={editingId}
+                    onEdit={onEdit}
+                    onSaveEdit={onSaveEdit}
+                    onCancelEdit={onCancelEdit}
+                    onDelete={onDelete}
+                  />
                 ))}
               </tbody>
             </table>

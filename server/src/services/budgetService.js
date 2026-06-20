@@ -1,5 +1,6 @@
 import db from '../db.js';
 import { getBudgetableNames } from './categoryService.js';
+import { ACCOUNTS } from '../constants/categories.js';
 
 class ValidationError extends Error {
   constructor(message) {
@@ -17,8 +18,11 @@ function assertValidMonth(month) {
   }
 }
 
+// Budgeting is Spending-only by design — a Savings category is never a
+// valid budget target even if a same-named category exists on Spending's
+// independent list.
 function assertValidCategory(category) {
-  if (!category || !getBudgetableNames().includes(category)) {
+  if (!category || !getBudgetableNames(ACCOUNTS.SPENDING).includes(category)) {
     throw new ValidationError(`category "${category}" is not budgetable`);
   }
 }

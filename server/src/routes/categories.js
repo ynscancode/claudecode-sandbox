@@ -16,7 +16,7 @@ function handleError(res, err) {
 
 router.get('/', (req, res) => {
   try {
-    const categories = listCategories();
+    const categories = listCategories(req.query.account_id);
     res.json(categories);
   } catch (err) {
     handleError(res, err);

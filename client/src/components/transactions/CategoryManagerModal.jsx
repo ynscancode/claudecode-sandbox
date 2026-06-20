@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../../api/client.js'
 import { useCategories } from '../../contexts/categories.js'
+import { ACCOUNT_NAMES } from '../../constants/categories.js'
 
 const RESERVED_NAMES = ['transfer-in', 'transfer-out']
 
-function CategoryColumn({ title, list, listKey, placeholder, refetch }) {
+function CategoryColumn({ title, list, listKey, accountId, placeholder, refetch }) {
   const [draft, setDraft] = useState('')
   const [addError, setAddError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
@@ -38,7 +39,7 @@ function CategoryColumn({ title, list, listKey, placeholder, refetch }) {
     }
     setSubmitting(true)
     try {
-      await api.createCategory({ name: trimmed, list: listKey })
+      await api.createCategory({ name: trimmed, list: listKey, account_id: accountId })
       setDraft('')
       setAddError(null)
       await refetch()
@@ -124,8 +125,8 @@ function CategoryColumn({ title, list, listKey, placeholder, refetch }) {
   )
 }
 
-export default function CategoryManagerModal({ onClose }) {
-  const { outgoing, incoming, loading, error, refetch } = useCategories()
+export default function CategoryManagerModal({ accountId, onClose }) {
+  const { outgoingFor, incomingFor, loading, error, refetch } = useCategories()
   const panelRef = useRef(null)
 
   useEffect(() => {
@@ -162,14 +163,14 @@ export default function CategoryManagerModal({ onClose }) {
 
   // Defense-in-depth: never render system categories even if a future API
   // regression slips them through (per AC3's "excluded entirely" wording).
-  const outgoingList = outgoing.filter((c) => !RESERVED_NAMES.includes(c.name.toLowerCase()))
-  const incomingList = incoming.filter((c) => !RESERVED_NAMES.includes(c.name.toLowerCase()))
+  const outgoingList = outgoingFor(accountId).filter((c) => !RESERVED_NAMES.includes(c.name.toLowerCase()))
+  const incomingList = incomingFor(accountId).filter((c) => !RESERVED_NAMES.includes(c.name.toLowerCase()))
 
   return (
     <div className="modal-overlay" style={{ zIndex: 51 }} onClick={onClose}>
       <div className="modal-panel" style={{ width: 'min(620px, 100%)' }} onClick={(e) => e.stopPropagation()} ref={panelRef}>
         <div className="modal-head">
-          <h2>Manage categories</h2>
+          <h2>Manage categories — {ACCOUNT_NAMES[accountId]}</h2>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Close">×</button>
         </div>
 
@@ -186,6 +187,7 @@ export default function CategoryManagerModal({ onClose }) {
               title="Outgoing"
               list={outgoingList}
               listKey="outgoing"
+              accountId={accountId}
               placeholder="Add outgoing category"
               refetch={refetch}
             />
@@ -193,6 +195,7 @@ export default function CategoryManagerModal({ onClose }) {
               title="Incoming"
               list={incomingList}
               listKey="incoming"
+              accountId={accountId}
               placeholder="Add incoming category"
               refetch={refetch}
             />

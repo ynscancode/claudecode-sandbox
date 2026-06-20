@@ -1,7 +1,8 @@
 import { dayLabel } from '../../utils/dateUtils.js'
 import TransactionRow from './TransactionRow.jsx'
 import { computeDayTotals } from './dayTotals.js'
-import { formatCurrency, formatInflow, formatOutflow } from '../../utils/format.js'
+import { formatInflow, formatOutflow } from '../../utils/format.js'
+import BalanceValue from './BalanceValue.jsx'
 
 function TotalRow({ label, totalIn, totalOut, balance, indent }) {
   return (
@@ -12,13 +13,13 @@ function TotalRow({ label, totalIn, totalOut, balance, indent }) {
       <td className="col-amount cell-in">{formatInflow(totalIn)}</td>
       <td className="col-amount cell-out">{formatOutflow(totalOut)}</td>
       <td></td>
-      <td className="col-amount">{formatCurrency(balance)}</td>
+      <td className="col-amount"><BalanceValue value={balance} /></td>
       <td></td>
     </tr>
   )
 }
 
-export default function DayGroup({ date, txns, onEdit, onDelete }) {
+export default function DayGroup({ date, txns, editingId, onEdit, onSaveEdit, onCancelEdit, onDelete }) {
   const totals = computeDayTotals(txns)
   // Only show the per-account breakdown when the day actually spans more than
   // one account — otherwise it just repeats the combined total.
@@ -33,14 +34,19 @@ export default function DayGroup({ date, txns, onEdit, onDelete }) {
         <td colSpan={7} className="day-header-cell">
           <div className="day-header-row-inner">
             <span className="day-header-label">{dayLabel(date)}</span>
-            <span className="day-header-totals">
-              in {formatInflow(totals.combined.in)} &nbsp;&middot;&nbsp; out {formatOutflow(totals.combined.out)}
-            </span>
           </div>
         </td>
       </tr>
       {txns.map((txn) => (
-        <TransactionRow key={txn.id} txn={txn} onEdit={onEdit} onDelete={onDelete} />
+        <TransactionRow
+          key={txn.id}
+          txn={txn}
+          isEditing={txn.id === editingId}
+          onEdit={onEdit}
+          onSaveEdit={onSaveEdit}
+          onCancelEdit={onCancelEdit}
+          onDelete={onDelete}
+        />
       ))}
       <TotalRow
         label={showPerAccount ? 'Day total (combined)' : 'Day total'}

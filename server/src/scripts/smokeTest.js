@@ -84,6 +84,31 @@ async function main() {
   const editedIn = txnsAfterEdit.find((t) => t.id === transfer1.inRow.id);
   assert(editedOut.amount === 60 && editedIn.amount === 60, 'both transfer legs updated to amount 60');
 
+  console.log('9b. Edit category on a normal transaction (new row, leaves t1/food untouched)');
+  const catEditTxn = await req('POST', '/transactions', {
+    date: '2026-06-01', account_id: 1, direction: 'out', category: 'food', amount: 5, comment: 'category edit test',
+  });
+  const catEdited = await req('PUT', `/transactions/${catEditTxn.id}`, { category: 'transport' });
+  assert(catEdited.category === 'transport', `category updated to transport (got ${catEdited.category})`);
+
+  console.log('9c. Edit category on a transfer leg -> 400');
+  let transferCategoryRejected = false;
+  try {
+    await req('PUT', `/transactions/${transfer1.outRow.id}`, { category: 'transfer-out' });
+  } catch (err) {
+    transferCategoryRejected = /400/.test(err.message) && /transfer/.test(err.message);
+  }
+  assert(transferCategoryRejected, 'category edit on a transfer leg rejected with 400');
+
+  console.log('9d. Edit category to an invalid value on a normal transaction -> 400');
+  let invalidCategoryRejected = false;
+  try {
+    await req('PUT', `/transactions/${catEditTxn.id}`, { category: 'transfer-in' });
+  } catch (err) {
+    invalidCategoryRejected = /400/.test(err.message);
+  }
+  assert(invalidCategoryRejected, 'category edit to reserved/invalid category on a normal transaction rejected with 400');
+
   console.log('10. Delete transfer2, confirm both legs removed');
   await req('DELETE', `/transactions/${transfer2.outRow.id}`);
   const txnsAfterDelete = await req('GET', '/transactions');
@@ -92,11 +117,11 @@ async function main() {
   );
   assert(!stillExists, 'both transfer2 legs deleted');
 
-  console.log('11. GET categories: 13 seeded rows -> 11 user-visible (transfer-in/out excluded)');
-  const categoriesBefore = await req('GET', '/categories');
+  console.log('11. GET categories: per-account, requires account_id (Spending=1)');
+  const categoriesBefore = await req('GET', '/categories?account_id=1');
   console.log(categoriesBefore);
-  assert(categoriesBefore.outgoing.length === 9, `9 outgoing categories (got ${categoriesBefore.outgoing.length})`);
-  assert(categoriesBefore.incoming.length === 2, `2 incoming categories (got ${categoriesBefore.incoming.length})`);
+  assert(categoriesBefore.outgoing.length === 9, `9 outgoing categories for Spending (got ${categoriesBefore.outgoing.length})`);
+  assert(categoriesBefore.incoming.length === 2, `2 incoming categories for Spending (got ${categoriesBefore.incoming.length})`);
   assert(
     !categoriesBefore.outgoing.some((c) => c.name === 'transfer-out') &&
       !categoriesBefore.incoming.some((c) => c.name === 'transfer-in'),
@@ -105,25 +130,58 @@ async function main() {
   const misc = categoriesBefore.outgoing.find((c) => c.name === 'miscellaneous');
   assert(misc && misc.color === '#CBAE4D', `miscellaneous seeded with frozen color #CBAE4D (got ${misc && misc.color})`);
 
-  console.log('12. POST a new outgoing category, assigned a color');
-  const newCat = await req('POST', '/categories', { name: 'Coffee Runs', list: 'outgoing' });
+  console.log('11b. GET categories with no account_id -> 400');
+  let missingAccountIdRejected = false;
+  try {
+    await req('GET', '/categories');
+  } catch (err) {
+    missingAccountIdRejected = /400/.test(err.message);
+  }
+  assert(missingAccountIdRejected, 'GET /categories with no account_id rejected with 400');
+
+  console.log('11c. GET categories for Savings (account_id=2) is its own independent list');
+  const categoriesSavings = await req('GET', '/categories?account_id=2');
+  console.log(categoriesSavings);
+  assert(categoriesSavings.outgoing.length === 9, `9 outgoing categories for Savings (got ${categoriesSavings.outgoing.length})`);
+  assert(categoriesSavings.incoming.length === 2, `2 incoming categories for Savings (got ${categoriesSavings.incoming.length})`);
+  const spendingIds = new Set(categoriesBefore.outgoing.map((c) => c.id));
+  assert(
+    categoriesSavings.outgoing.every((c) => !spendingIds.has(c.id)),
+    'Savings outgoing categories have distinct ids from Spending (separate rows, cloned by migration 004)'
+  );
+
+  console.log('12. POST a new outgoing category on Spending, assigned a color');
+  const newCat = await req('POST', '/categories', { name: 'Coffee Runs', list: 'outgoing', account_id: 1 });
   assert(newCat.id != null, 'new category has an id');
   assert(newCat.name === 'Coffee Runs', 'name stored verbatim (casing preserved)');
   assert(typeof newCat.color === 'string' && /^#[0-9A-F]{6}$/i.test(newCat.color), `new category got a hex color (got ${newCat.color})`);
+  assert(newCat.account_id === 1, 'new category stamped with account_id 1');
 
-  console.log('13. POST duplicate name (case-insensitive) in same list -> 400');
+  console.log('12b. The new Spending-only category does NOT appear in Savings\' list (per-account isolation)');
+  const categoriesSavingsAfterAdd = await req('GET', '/categories?account_id=2');
+  assert(
+    !categoriesSavingsAfterAdd.outgoing.some((c) => c.name === 'Coffee Runs'),
+    'category added to Spending is absent from Savings'
+  );
+
+  console.log('13. POST duplicate name (case-insensitive) in same list + account -> 400');
   let duplicateRejected = false;
   try {
-    await req('POST', '/categories', { name: 'coffee runs', list: 'outgoing' });
+    await req('POST', '/categories', { name: 'coffee runs', list: 'outgoing', account_id: 1 });
   } catch (err) {
     duplicateRejected = /400/.test(err.message);
   }
-  assert(duplicateRejected, 'case-insensitive duplicate in same list rejected with 400');
+  assert(duplicateRejected, 'case-insensitive duplicate in same list+account rejected with 400');
+
+  console.log('13b. Same name allowed on the OTHER account (Savings) since lists are independent');
+  const coffeeOnSavings = await req('POST', '/categories', { name: 'Coffee Runs', list: 'outgoing', account_id: 2 });
+  assert(coffeeOnSavings.id !== newCat.id, 'same name on Savings creates a distinct row, not rejected as duplicate');
+  await req('DELETE', `/categories/${coffeeOnSavings.id}`);
 
   console.log('14. POST reserved name "transfer-in" -> 400');
   let reservedRejected = false;
   try {
-    await req('POST', '/categories', { name: 'Transfer-In', list: 'incoming' });
+    await req('POST', '/categories', { name: 'Transfer-In', list: 'incoming', account_id: 1 });
   } catch (err) {
     reservedRejected = /400/.test(err.message);
   }
@@ -132,15 +190,24 @@ async function main() {
   console.log('15. POST 31-character name -> 400');
   let tooLongRejected = false;
   try {
-    await req('POST', '/categories', { name: 'a'.repeat(31), list: 'outgoing' });
+    await req('POST', '/categories', { name: 'a'.repeat(31), list: 'outgoing', account_id: 1 });
   } catch (err) {
     tooLongRejected = /400/.test(err.message);
   }
   assert(tooLongRejected, '31-character name rejected with 400');
 
+  console.log('15b. POST with missing/invalid account_id -> 400');
+  let invalidAccountRejected = false;
+  try {
+    await req('POST', '/categories', { name: 'Whatever', list: 'outgoing', account_id: 99 });
+  } catch (err) {
+    invalidAccountRejected = /400/.test(err.message);
+  }
+  assert(invalidAccountRejected, 'POST /categories with invalid account_id rejected with 400');
+
   console.log('16. DELETE the unreferenced new category -> 204, disappears from GET');
   await req('DELETE', `/categories/${newCat.id}`);
-  const categoriesAfterDelete = await req('GET', '/categories');
+  const categoriesAfterDelete = await req('GET', '/categories?account_id=1');
   assert(
     !categoriesAfterDelete.outgoing.some((c) => c.id === newCat.id),
     'deleted category no longer present in GET /categories'
@@ -149,7 +216,7 @@ async function main() {
   console.log('17. DELETE a category with referencing transactions -> 400 with count message');
   let blockedDeleteMessage = null;
   try {
-    await req('DELETE', '/categories/1'); // "food" — t1 above references it
+    await req('DELETE', '/categories/1'); // "food" on Spending — t1 above references it
   } catch (err) {
     blockedDeleteMessage = err.message;
   }
@@ -162,7 +229,8 @@ async function main() {
   // transfer-out is system-managed and excluded from GET /categories by design,
   // so it can't be looked up via the public endpoint — use the known seeded id
   // from migration order instead (003_categories.sql inserts 9 outgoing user
-  // categories, then transfer-out as the 10th row).
+  // categories, then transfer-out as the 10th row, for Spending; migration 004
+  // does not clone system rows, so this id is stable regardless of account_id).
   let systemDeleteRejected = false;
   try {
     await req('DELETE', '/categories/10');
