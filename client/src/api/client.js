@@ -12,6 +12,20 @@ async function request(method, path, body) {
   return data;
 }
 
+// Separate from request() on purpose: multipart bodies must NOT set a
+// Content-Type header (the browser generates the multipart boundary itself),
+// so this can't share request()'s JSON-only contract without overloading it
+// with conditionals.
+async function requestFormData(method, path, formData) {
+  const res = await fetch(`/api${path}`, { method, body: formData });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!res.ok) {
+    throw new Error(data?.error || `${method} ${path} failed with ${res.status}`);
+  }
+  return data;
+}
+
 export const api = {
   getAccounts: () => request('GET', '/accounts'),
 
@@ -39,4 +53,11 @@ export const api = {
   getCategories: (accountId) => request('GET', `/categories?account_id=${accountId}`),
   createCategory: ({ name, list, account_id }) => request('POST', '/categories', { name, list, account_id }),
   deleteCategory: (id) => request('DELETE', `/categories/${id}`),
+
+  parseImportFile: (file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return requestFormData('POST', '/imports/parse', fd);
+  },
+  commitImport: (payload) => request('POST', '/imports/commit', payload),
 };

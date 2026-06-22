@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { api } from '../api/client.js'
 import TransactionList from '../components/transactions/TransactionList.jsx'
 import TransactionModal from '../components/transactions/TransactionModal.jsx'
+import ImportModal from '../components/imports/ImportModal.jsx'
 import { currentMonthStr, monthRangeFor, monthLabel } from '../utils/dateUtils.js'
 import { formatCurrency } from '../utils/format.js'
 import { ACCOUNT_NAMES } from '../constants/categories.js'
@@ -17,6 +18,7 @@ export default function TransactionsPage() {
   const [editingId, setEditingId] = useState(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState('normal')
+  const [importOpen, setImportOpen] = useState(false)
 
   const loadTransactions = useCallback(async () => {
     setLoading(true)
@@ -72,6 +74,11 @@ export default function TransactionsPage() {
     setModalOpen(true)
   }
 
+  async function handleImported() {
+    await loadTransactions()
+    refreshAccounts()
+  }
+
   return (
     <div className="page-animate">
       <div className="page-header-row">
@@ -82,6 +89,7 @@ export default function TransactionsPage() {
         <div className="page-header-actions">
           <button type="button" className="btn" onClick={() => openModal('normal')}>+ Transaction</button>
           <button type="button" className="btn btn-secondary" onClick={() => openModal('transfer')}>⇄ Transfer</button>
+          <button type="button" className="btn btn-secondary" onClick={() => setImportOpen(true)}>Import</button>
         </div>
       </div>
 
@@ -134,6 +142,10 @@ export default function TransactionsPage() {
           onCreateTransaction={handleCreateTransaction}
           onCreateTransfer={handleCreateTransfer}
         />
+      )}
+
+      {importOpen && (
+        <ImportModal onClose={() => setImportOpen(false)} onImported={handleImported} />
       )}
     </div>
   )

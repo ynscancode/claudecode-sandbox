@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "smoke-test": "node src/scripts/smokeTest.js"
+    "smoke-test": "node src/scripts/smokeTest.js",
+    "import-smoke-test": "node src/scripts/importSmokeTest.js"
   },
   "keywords": [],
   "author": "",
@@ -15,6 +16,8 @@
   "dependencies": {
     "better-sqlite3": "^12.11.1",
     "cors": "^2.8.6",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "multer": "^2.0.1",
+    "xlsx": "^0.18.5"
   }
 }
