@@ -215,6 +215,17 @@ export function getOutgoingNames(accountId) {
     .map((r) => r.name);
 }
 
+// Incoming category names a normal transaction may use for the given
+// account (excludes is_system, e.g. transfer-in). Symmetric counterpart to
+// getOutgoingNames() — used by importService.js's category skip-if-exists
+// guard for incoming-list category drafts.
+export function getIncomingNames(accountId) {
+  return db
+    .prepare("SELECT name FROM categories WHERE list = 'incoming' AND is_system = 0 AND account_id = ? ORDER BY id")
+    .all(Number(accountId))
+    .map((r) => r.name);
+}
+
 // Outgoing categories a user can set a monthly budget for, on the given
 // account. Computed live — currently identical to getOutgoingNames() since
 // transfer-out is_system=1 is already excluded there, but kept as its own

@@ -6,3 +6,7 @@ server/budget.db-shm
 client/dist/
 .DS_Store
 .playwright-mcp/
+.env
+.env.*
+server/.env
+server/.env.*
