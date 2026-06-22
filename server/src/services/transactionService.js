@@ -164,4 +164,17 @@ export function deleteTransaction(id) {
   txn();
 }
 
+export function deleteAllTransactions() {
+  const txn = db.transaction(() => {
+    // Null out every self-referencing linked_transaction_id first so the
+    // subsequent bulk DELETE never violates the self-referencing FK
+    // (a transfer leg's row would otherwise still be referenced by its
+    // not-yet-deleted partner at the moment SQLite checks the constraint).
+    db.prepare('UPDATE transactions SET linked_transaction_id = NULL').run();
+    const result = db.prepare('DELETE FROM transactions').run();
+    return result.changes;
+  });
+  return txn();
+}
+
 export { ValidationError };

@@ -3,6 +3,7 @@ import { api } from '../api/client.js'
 import TransactionList from '../components/transactions/TransactionList.jsx'
 import TransactionModal from '../components/transactions/TransactionModal.jsx'
 import ImportModal from '../components/imports/ImportModal.jsx'
+import ClearHistoryModal from '../components/transactions/ClearHistoryModal.jsx'
 import MonthSwitcher from '../components/layout/MonthSwitcher.jsx'
 import { currentMonthStr, monthRangeFor, monthLabel } from '../utils/dateUtils.js'
 import { formatCurrency } from '../utils/format.js'
@@ -20,6 +21,8 @@ export default function TransactionsPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState('normal')
   const [importOpen, setImportOpen] = useState(false)
+  const [clearOpen, setClearOpen] = useState(false)
+  const [clearedMessage, setClearedMessage] = useState(null)
 
   const loadTransactions = useCallback(async () => {
     setLoading(true)
@@ -80,6 +83,13 @@ export default function TransactionsPage() {
     refreshAccounts()
   }
 
+  async function handleCleared() {
+    setClearOpen(false)
+    await loadTransactions()
+    refreshAccounts()
+    setClearedMessage('All transaction history has been deleted.')
+  }
+
   return (
     <div className="page-animate">
       <div className="page-header-row">
@@ -91,8 +101,14 @@ export default function TransactionsPage() {
           <button type="button" className="btn" onClick={() => openModal('normal')}>+ Transaction</button>
           <button type="button" className="btn btn-secondary" onClick={() => openModal('transfer')}>⇄ Transfer</button>
           <button type="button" className="btn btn-secondary" onClick={() => setImportOpen(true)}>Import</button>
+          <span className="page-header-actions-divider" aria-hidden="true" />
+          <button type="button" className="btn-danger" onClick={() => setClearOpen(true)}>Clear all history</button>
         </div>
       </div>
+
+      {clearedMessage && (
+        <div className="status-banner" role="status">{clearedMessage}</div>
+      )}
 
       <div className="filter-strip">
         <MonthSwitcher month={month} onChange={setMonth} />
@@ -144,6 +160,10 @@ export default function TransactionsPage() {
 
       {importOpen && (
         <ImportModal onClose={() => setImportOpen(false)} onImported={handleImported} />
+      )}
+
+      {clearOpen && (
+        <ClearHistoryModal onClose={() => setClearOpen(false)} onCleared={handleCleared} />
       )}
     </div>
   )

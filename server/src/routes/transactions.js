@@ -5,6 +5,7 @@ import {
   createTransfer,
   updateTransaction,
   deleteTransaction,
+  deleteAllTransactions,
   ValidationError,
 } from '../services/transactionService.js';
 
@@ -49,6 +50,18 @@ router.put('/:id', (req, res) => {
   try {
     const result = updateTransaction(Number(req.params.id), req.body);
     res.json(result);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// Must be registered before the '/:id' route below — Express matches
+// routes top-to-bottom, and '/:id' would otherwise capture this path with
+// id="all".
+router.delete('/all', (req, res) => {
+  try {
+    const deleted = deleteAllTransactions();
+    res.json({ deleted });
   } catch (err) {
     handleError(res, err);
   }

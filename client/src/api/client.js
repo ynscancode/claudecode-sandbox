@@ -42,6 +42,7 @@ export const api = {
   createTransfer: (data) => request('POST', '/transactions/transfer', data),
   updateTransaction: (id, data) => request('PUT', `/transactions/${id}`, data),
   deleteTransaction: (id) => request('DELETE', `/transactions/${id}`),
+  deleteAllTransactions: () => request('DELETE', '/transactions/all'),
 
   getDailySummary: (date) => request('GET', `/summary/daily?date=${date}`),
   getMonthlySummary: (month) => request('GET', `/summary/monthly?month=${month}`),
