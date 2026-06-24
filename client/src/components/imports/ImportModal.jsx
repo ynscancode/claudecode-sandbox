@@ -11,7 +11,8 @@ import Step1Upload from './Step1Upload.jsx'
 import Step2Columns from './Step2Columns.jsx'
 import ImportSuggestAI from './ImportSuggestAI.jsx'
 import Step3Values from './Step3Values.jsx'
-import { buildInitialAccountMapping, buildInitialCategoryMapping } from './buildInitialMappings.js'
+import { buildInitialAccountMapping, buildInitialCategoryMapping, buildInitialCategoryMappingMulti } from './buildInitialMappings.js'
+import { uniqueValuesByAccount } from '../../utils/importTransforms.js'
 import Step4Review from './Step4Review.jsx'
 import Step5Confirm from './Step5Confirm.jsx'
 
@@ -60,6 +61,9 @@ function initialState() {
       // the account column yet" state. An explicit field disambiguates
       // "I declared single-account" from "I haven't mapped it yet."
       accountScope: 'single',
+      hasLegend: false,
+      legendCodeCol: null,
+      legendNameCol: null,
     },
     categoryMapping: new Map(),
     accountMapping: new Map(),
@@ -129,6 +133,9 @@ function columnMappingIsComplete(mapping) {
   } else if (mapping.fixedAccountId == null) {
     return false
   }
+  // Legend columns are required once the legend toggle is enabled
+  // (Round-2 DECISION 1 acceptance criterion 7).
+  if (mapping.hasLegend && (mapping.legendCodeCol == null || mapping.legendNameCol == null)) return false
   if (mapping.amountMode === 'single') {
     return mapping.amountCol != null
   }
@@ -143,6 +150,8 @@ export default function ImportModal({ onClose, onImported }) {
 
   const outgoingNames = useMemo(() => outgoingFor(ACCOUNTS.SPENDING).map((c) => c.name), [outgoingFor])
   const incomingNames = useMemo(() => incomingFor(ACCOUNTS.SPENDING).map((c) => c.name), [incomingFor])
+  const savingsOutgoingNames = useMemo(() => outgoingFor(ACCOUNTS.SAVINGS).map((c) => c.name), [outgoingFor])
+  const savingsIncomingNames = useMemo(() => incomingFor(ACCOUNTS.SAVINGS).map((c) => c.name), [incomingFor])
 
   // Focus the new step's first control on every step change. Scoped to the
   // step body (not the whole panel) so it never lands on the header's "x"
@@ -251,7 +260,18 @@ export default function ImportModal({ onClose, onImported }) {
   }
 
   function setColumnMapping(next) {
-    setState((s) => ({ ...s, columnMapping: next }))
+    setState((s) => {
+      // When the legend toggle is turned off, clear any already-built
+      // categoryMapping so stale legend-derived prefills don't survive
+      // (Round-2 DECISION 1 acceptance criterion 7). proceedToValues will
+      // rebuild the map from scratch when categoryMapping.size === 0.
+      const clearMapping = s.columnMapping.hasLegend && !next.hasLegend
+      return {
+        ...s,
+        columnMapping: next,
+        ...(clearMapping ? { categoryMapping: new Map() } : {}),
+      }
+    })
   }
 
   function setCategoryMapping(next) {
@@ -313,12 +333,48 @@ export default function ImportModal({ onClose, onImported }) {
       // a Map entry (and the one category that actually gets created).
       const rawCategories = uniqueValues(s.rows, s.columnMapping.categoryCol)
       const rawAccounts = uniqueValues(s.rows, s.columnMapping.accountCol)
-      const categoryMapping =
-        s.categoryMapping.size > 0
-          ? s.categoryMapping
-          : s.aiCategorySuggestion
-          ? new Map(s.aiCategorySuggestion.map((c) => [c.raw, { name: c.name, list: c.list, isNew: c.isNew }]))
-          : buildInitialCategoryMapping(rawCategories, [...outgoingNames, ...incomingNames])
+
+      // Round-2 DECISION 1: build a legend lookup by scanning the FULL rawGrid
+      // (not just the data row range) for rows where both the legend code cell
+      // and legend name cell are non-blank. This handles a legend located
+      // anywhere in the file — beside, above, or below the data rows. Only
+      // built when the legend toggle is on AND both column indices are set.
+      let legendLookup = null
+      if (s.columnMapping.hasLegend && s.columnMapping.legendCodeCol != null && s.columnMapping.legendNameCol != null) {
+        legendLookup = new Map()
+        for (const row of s.rawGrid) {
+          const code = String(row[s.columnMapping.legendCodeCol] ?? '').trim()
+          const name = String(row[s.columnMapping.legendNameCol] ?? '').trim()
+          if (code && name) {
+            legendLookup.set(code.toLowerCase(), name)
+          }
+        }
+      }
+
+      let categoryMapping
+      if (s.categoryMapping.size > 0) {
+        // Already built (user came back to this step) — keep as-is.
+        categoryMapping = s.categoryMapping
+      } else if (s.aiCategorySuggestion) {
+        // AI suggestion path: plain-key Map, unchanged (AI carries plain keys
+        // and buildDraftTransactions falls back to plain key correctly).
+        categoryMapping = new Map(s.aiCategorySuggestion.map((c) => [c.raw, { name: c.name, list: c.list, isNew: c.isNew }]))
+      } else if (s.columnMapping.accountScope === 'multiple') {
+        // Multi-account deterministic path (Round-2 DECISION 2): compound
+        // keys `${accountId}|${rawCategory}` so each account's category
+        // vocabulary is resolved independently.
+        // We need accountMapping to be built first; build it inline here.
+        const tempAccountMapping = buildInitialAccountMapping(rawAccounts)
+        const candidateNamesByAccount = {
+          [ACCOUNTS.SPENDING]: [...outgoingNames, ...incomingNames],
+          [ACCOUNTS.SAVINGS]: [...savingsOutgoingNames, ...savingsIncomingNames],
+        }
+        categoryMapping = buildInitialCategoryMappingMulti(s.rows, s.columnMapping, tempAccountMapping, candidateNamesByAccount, legendLookup)
+      } else {
+        // Single-account deterministic path — unchanged from Round 1.
+        categoryMapping = buildInitialCategoryMapping(rawCategories, [...outgoingNames, ...incomingNames], legendLookup)
+      }
+
       const accountMapping =
         s.accountMapping.size > 0
           ? s.accountMapping
@@ -506,6 +562,10 @@ export default function ImportModal({ onClose, onImported }) {
               outgoingNames={outgoingNames}
               incomingNames={incomingNames}
               colorFor={(name) => ctxColorFor(ACCOUNTS.SPENDING, name)}
+              categoriesByAccount={uniqueValuesByAccount(state.rows, state.columnMapping.categoryCol, state.columnMapping.accountCol, state.accountMapping)}
+              outgoingByAccount={{ [ACCOUNTS.SPENDING]: outgoingNames, [ACCOUNTS.SAVINGS]: savingsOutgoingNames }}
+              incomingByAccount={{ [ACCOUNTS.SPENDING]: incomingNames, [ACCOUNTS.SAVINGS]: savingsIncomingNames }}
+              colorForAccount={(accountId, name) => ctxColorFor(accountId, name)}
             />
           )}
 

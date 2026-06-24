@@ -3,6 +3,7 @@
 // components, and Step3Values.jsx imports them.
 import { bestMatch } from '../../utils/fuzzyMatch.js'
 import { ACCOUNTS, ACCOUNT_NAMES } from '../../constants/categories.js'
+import { uniqueValuesByAccount } from '../../utils/importTransforms.js'
 
 // True when EVERY unique, non-blank raw value in a category column is a
 // bare integer code (e.g. "1", "23" — no decimals, no leading +/-). Gated on
@@ -29,9 +30,34 @@ export function isNumericCodeColumn(rawValues) {
 // semantic relationship to any category name, so a fuzzy/auto-create default
 // is actively misleading (it was literally creating categories named "1",
 // "2", etc.). The user must pick per-code with no auto-suggestion bias.
-export function buildInitialCategoryMapping(rawCategories, candidateNames) {
+//
+// Round-2 DECISION 1: if legendLookup (Map<lowercasedCode, name>) is
+// provided and the column is numeric-coded, pre-fill each code whose
+// lowercased form appears in the legend instead of leaving it unselected.
+// The legend name is checked case-insensitively against candidateNames:
+//   - matches an existing candidate -> isNew: false with the candidate's
+//     exact stored casing (avoids duplicates that differ only by case).
+//   - no match -> isNew: true with the legend's literal text (user-editable).
+// Codes NOT in the legend still fall back to the unselected sentinel.
+// Non-numeric columns: legendLookup is ignored (fuzzy path unchanged).
+export function buildInitialCategoryMapping(rawCategories, candidateNames, legendLookup = null) {
   if (isNumericCodeColumn(rawCategories)) {
-    return new Map(rawCategories.map((raw) => [raw, { name: null, list: 'outgoing', isNew: false }]))
+    return new Map(rawCategories.map((raw) => {
+      if (legendLookup && legendLookup.size > 0) {
+        const legendName = legendLookup.get(String(raw).trim().toLowerCase())
+        if (legendName != null) {
+          // Case-insensitive check against existing candidates
+          const lower = legendName.toLowerCase()
+          const existing = candidateNames.find((c) => c.toLowerCase() === lower)
+          if (existing != null) {
+            return [raw, { name: existing, list: 'outgoing', isNew: false }]
+          }
+          return [raw, { name: legendName, list: 'outgoing', isNew: true }]
+        }
+      }
+      // Code not in legend (or no legend) — unselected sentinel
+      return [raw, { name: null, list: 'outgoing', isNew: false }]
+    }))
   }
   const map = new Map()
   for (const raw of rawCategories) {
@@ -43,6 +69,30 @@ export function buildInitialCategoryMapping(rawCategories, candidateNames) {
     }
   }
   return map
+}
+
+// Builds a single compound-keyed categoryMapping for multi-account mode
+// (Round-2 DECISION 2). Groups unique raw category values per resolved
+// accountId using uniqueValuesByAccount, calls buildInitialCategoryMapping
+// per account, and returns one flat Map with compound keys
+// `${accountId}|${rawCategory}` so buildDraftTransactions can resolve
+// each row's category against the correct account's vocabulary.
+//
+// candidateNamesByAccount: plain object { [accountId]: string[] }
+// legendLookup: same Map<lowercasedCode, name> as above, applied per-account
+//   (one shared legend, per DECISION 2 point 4 — each account independently
+//   checks its own candidateNames for isNew vs not).
+export function buildInitialCategoryMappingMulti(rows, columnMapping, accountMapping, candidateNamesByAccount, legendLookup) {
+  const byAccount = uniqueValuesByAccount(rows, columnMapping.categoryCol, columnMapping.accountCol, accountMapping)
+  const result = new Map()
+  for (const [accountId, rawCats] of byAccount) {
+    const candidates = candidateNamesByAccount[accountId] ?? []
+    const perAccountMap = buildInitialCategoryMapping(rawCats, candidates, legendLookup)
+    for (const [rawCat, entry] of perAccountMap) {
+      result.set(`${accountId}|${rawCat}`, entry)
+    }
+  }
+  return result
 }
 
 // Token-run check identical in spirit to guessColumnMapping.js's

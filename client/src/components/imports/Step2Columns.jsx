@@ -112,6 +112,29 @@ export default function Step2Columns({ headers, mapping, onChange, rawGrid, data
         </div>
       </label>
 
+      <label className="form-field full" style={{ marginBottom: 14 }}>
+        Category legend
+        <div className="pill-group">
+          <button type="button" className={`pill-btn ${!mapping.hasLegend ? 'active' : ''}`}
+            onClick={() => onChange({ ...mapping, hasLegend: false, legendCodeCol: null, legendNameCol: null })}>
+            No legend
+          </button>
+          <button type="button" className={`pill-btn ${mapping.hasLegend ? 'active' : ''}`}
+            onClick={() => set('hasLegend', true)}>
+            File has a category legend
+          </button>
+        </div>
+        <p style={{ color: 'var(--muted)', fontSize: 12, marginTop: 4 }}>
+          If your file has a side column with a code→category name table, point the wizard at it to auto-fill Step 3.
+        </p>
+      </label>
+      {mapping.hasLegend && (
+        <div className="import-mapping-grid" style={{ marginBottom: 16 }}>
+          <ColumnSelect label="Legend code column" headers={headers} value={mapping.legendCodeCol} onChange={(v) => set('legendCodeCol', v)} required />
+          <ColumnSelect label="Legend name column" headers={headers} value={mapping.legendNameCol} onChange={(v) => set('legendNameCol', v)} required />
+        </div>
+      )}
+
       <div className="import-mapping-grid">
         <ColumnSelect label="Date column" headers={headers} value={mapping.dateCol} onChange={(v) => set('dateCol', v)} required />
 

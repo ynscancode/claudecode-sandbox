@@ -491,3 +491,106 @@ Conservative list — everything else above is decided. Only escalating what tru
 Everything else in both decisions (per-account category vocabulary independence, legend-as-assist-not-autocommit, ASCII of how the Map keys/UI split, single-account-mode no-op, fallback-to-manual-when-uncovered) follows directly from the existing data model (CLAUDE.md's categories-are-per-account section) and the user's own verbatim report, and does not need further end-user input.
 
 **Engineering should NOT start building the two-legend variant or a non-two-column legend parser speculatively — build to the single-shared-legend, two-column-adjacent spec above first, and only branch if the user's answers to the two questions above say otherwise.**
+
+### engineering-director — Round 2 routing (2026-06-24)
+Scope assessed: Round-2 DECISION 1 (legend picker) + DECISION 2 (per-account category mapping) are fully specified by product-owner + tech-lead's round-1 patterns. Pure client-side React across 5 files (importTransforms.js partially pre-done). Requirements/architecture already settled — skipping product-owner/tech-lead re-dispatch. Real regression risk to the single-account path + the compound-key seed/display/lookup consistency invariant (same class as the case-variant rollback bug) puts this on senior-frontend-dev, not junior. Then qa-engineer for spec-compliance + build verification. Security/devops/docs not implicated (no new endpoint, schema, auth surface). Dispatch order: senior-frontend-dev -> qa-engineer.
+
+### senior-frontend-dev — Round 2 implementation (2026-06-24)
+
+Implemented DECISION 1 (legend picker) + DECISION 2 (per-account category mapping) per the product-owner spec. No server files touched. No new libraries introduced.
+
+**Files changed:**
+
+- `client/src/components/imports/buildInitialMappings.js`
+  - Added `import { uniqueValuesByAccount } from '../../utils/importTransforms.js'`
+  - Updated `buildInitialCategoryMapping(rawCategories, candidateNames, legendLookup = null)`: added optional `legendLookup` param; when column is numeric-coded AND `legendLookup` has an entry for the code (lowercased key), pre-fills `{ name, list: 'outgoing', isNew }` — `isNew: false` if the legend name matches an existing candidate (case-insensitive, uses exact stored casing), `isNew: true` with the legend's literal text otherwise; codes not in the legend stay as the unselected sentinel; non-numeric columns are unchanged.
+  - Added new export `buildInitialCategoryMappingMulti(rows, columnMapping, accountMapping, candidateNamesByAccount, legendLookup)`: groups unique raw categories per account via `uniqueValuesByAccount`, calls `buildInitialCategoryMapping` per account, returns a flat `Map` with compound keys `${accountId}|${rawCategory}`.
+
+- `client/src/components/imports/ImportModal.jsx`
+  - `initialState()`: added `hasLegend: false, legendCodeCol: null, legendNameCol: null` to `columnMapping`.
+  - Added `savingsOutgoingNames` and `savingsIncomingNames` useMemos (`outgoingFor(ACCOUNTS.SAVINGS)` / `incomingFor(ACCOUNTS.SAVINGS)`).
+  - `columnMappingIsComplete`: added guard `if (mapping.hasLegend && (mapping.legendCodeCol == null || mapping.legendNameCol == null)) return false`.
+  - `setColumnMapping`: now clears `categoryMapping` to `new Map()` when `hasLegend` flips from `true` to `false`, so stale legend-derived prefills don't survive a toggle-off (DECISION 1 acceptance criterion 7).
+  - `proceedToValues()`: builds `legendLookup` (scans full `rawGrid` for non-blank code+name pairs, keyed by lowercased code) when `hasLegend && legendCodeCol != null && legendNameCol != null`. Multi-account path (`accountScope === 'multiple'` and no AI suggestion) calls `buildInitialCategoryMappingMulti` with `candidateNamesByAccount = { [ACCOUNTS.SPENDING]: [...outgoingNames, ...incomingNames], [ACCOUNTS.SAVINGS]: [...savingsOutgoingNames, ...savingsIncomingNames] }`. Single-account deterministic path passes `legendLookup` as 3rd arg to `buildInitialCategoryMapping`. AI suggestion path: unchanged (plain-key Map, falls back correctly in `buildDraftTransactions`).
+  - Step3Values JSX call site: added 4 new props — `categoriesByAccount`, `outgoingByAccount`, `incomingByAccount`, `colorForAccount`.
+  - Added imports: `buildInitialCategoryMappingMulti` from `./buildInitialMappings.js`; `uniqueValuesByAccount` from `../../utils/importTransforms.js`.
+
+- `client/src/components/imports/Step2Columns.jsx`
+  - Added "Category legend" pill toggle (`No legend` / `File has a category legend`) between the Account scope block and the main mapping grid. Clicking "No legend" calls `onChange({ ...mapping, hasLegend: false, legendCodeCol: null, legendNameCol: null })` (resets all three at once). Clicking "File has a category legend" calls `set('hasLegend', true)`.
+  - When `mapping.hasLegend` is true, renders a second `import-mapping-grid` (with `marginBottom: 16`) containing two required `ColumnSelect`s: "Legend code column" and "Legend name column".
+  - No changes to the main mapping grid below.
+
+- `client/src/components/imports/Step3Values.jsx`
+  - Added optional props: `categoriesByAccount` (`Map<accountId, string[]>`), `outgoingByAccount` (`{ [accountId]: string[] }`), `incomingByAccount` (`{ [accountId]: string[] }`), `colorForAccount` (`(accountId, name) => cssColor`).
+  - Factored out a `CategoryRow` inner component accepting `{ raw, mapKey, entry, outgoing, incoming, colorFn, updateFn }` — contains the full category-row rendering (dropdown, unselected sentinel, "+ Create new", isNew list selector, color swatch). Used by both single and multi modes; the ONLY difference between the two paths is the `mapKey` value (`raw` in single, `${accountId}|${raw}` in multi).
+  - Multi-account mode (`accountScope === 'multiple'` AND `categoriesByAccount.size > 0`): renders one sub-list per accountId in `categoriesByAccount`, headed `{ACCOUNT_NAMES[accountId]} categories`, each using that account's `outgoingByAccount[accountId]` / `incomingByAccount[accountId]` vocabulary and `colorForAccount(accountId, name)` for swatches.
+  - Single-account mode: unchanged flat list keyed by plain `rawCat`.
+  - Falls back to single-account rendering if `categoriesByAccount` is null/empty (e.g. accountMapping not yet set up).
+
+**New param/prop/Map-key shapes:**
+
+- `buildInitialCategoryMapping(rawCategories, candidateNames, legendLookup?)` — `legendLookup: Map<lowercasedCode, name> | null`
+- `buildInitialCategoryMappingMulti(rows, columnMapping, accountMapping, candidateNamesByAccount, legendLookup)` — returns `Map<"${accountId}|${rawCategory}", {name, list, isNew}>`
+- `columnMapping.hasLegend: boolean`, `columnMapping.legendCodeCol: number | null`, `columnMapping.legendNameCol: number | null`
+- `categoryMapping` key in multi-account mode: compound `"${accountId}|${rawCategory}"` (single-account: unchanged plain `rawCategory`)
+- Step3Values new props: `categoriesByAccount: Map<accountId, string[]>`, `outgoingByAccount: { [accountId]: string[] }`, `incomingByAccount: { [accountId]: string[] }`, `colorForAccount: (accountId, name) => string`
+
+**Build result: PASS.** `cd client && npm run build` — 1816 modules transformed, no errors. `cd client && npm run lint` — 2 pre-existing errors in `DashboardPage.jsx`/`TransactionsPage.jsx` (unrelated, untouched files); zero lint errors in any file I changed.
+
+**Single-account path invariant confirmed:** `hasLegend` defaults to `false`, `accountScope` defaults to `'single'` — all new code (legend lookup build, multi-account `buildInitialCategoryMappingMulti` call, compound Map keys, per-account sub-lists in Step3) is gated exclusively behind `hasLegend === true` or `accountScope === 'multiple'` checks. No behavior change on the single-account no-legend path.
+
+**QA should specifically exercise:**
+1. **Legend toggle OFF (default)** — verify Step 2 shows "No legend" active, no code/name selects appear, Next is not blocked, Step 3 category rows behave identically to Round 1. This is the regression-safety check.
+2. **Legend toggle ON, numeric-coded category column** — enable "File has a category legend", map legend code + name columns, proceed to Step 3. Verify each numeric code that appears in the legend is pre-filled with the legend's name (dropdown shows the resolved name, not "— Select a category —"). Verify codes absent from the legend stay on the unselected sentinel. Verify the pre-filled name is `isNew: false` if it already exists in that account's category list (correct swatch shown), `isNew: true` otherwise (list selector shown).
+3. **Legend toggle ON then OFF** — after enabling the legend and proceeding to Step 3 (legend-derived prefills visible), go Back, disable the legend, click Next again. Step 3 must show all codes as unselected (categoryMapping was cleared on toggle-off) — no stale legend mapping surviving.
+4. **Multi-account mode with per-account categories** — file with both Spending and Savings rows, same numeric code "3" in both. Step 3 should show two headed sub-lists ("Spending categories", "Savings categories"), each with their own "3" row, each dropdown sourced from the correct account's vocabulary (Spending's categories vs. Savings's). Map "3" differently per account; confirm Step 4 resolves each row to its per-account mapping.
+5. **Multi-account + legend combined** — accountScope multiple + legend enabled. Each account's sub-list should get legend-derived prefills checked against THAT account's own category list for `isNew` determination independently (DECISION 2 acceptance criterion 5 — same code, exists in one account but not the other, should yield `isNew: false` in one sub-list and `isNew: true` in the other).
+6. **Single-account regression** — plain single-account file with non-numeric categories, no legend. End-to-end through commit, confirm no regression.
+7. **Visual verification request:** post to visual-verification board — confirm multi-account sub-list headings render correctly, legend code/name selects appear/disappear on toggle, compound-keyed entries survive going Back and forward between Steps 2 and 3.
+
+### qa-engineer — Round 2 verification (2026-06-24)
+
+**Build: PASS.** `client/npm run build` — 1816 modules transformed, no errors, no warnings.
+
+**Lint:** 0 errors in all 5 changed files (`buildInitialMappings.js`, `ImportModal.jsx`, `Step2Columns.jsx`, `Step3Values.jsx`, `importTransforms.js`). The 2 pre-existing lint errors in `DashboardPage.jsx` and `TransactionsPage.jsx` are unrelated and untouched.
+
+**Regression test results:**
+- `importMappingTest.js` — 48/48 assertions PASS
+- `importDateXlsxTest.js` — 12/12 assertions PASS
+- `importLlmTest.js` — 60/60 assertions PASS
+
+**Spec requirement verdicts (DECISION 1 items 1-5, DECISION 2 items 6-10):**
+
+1. [PASS] Step 2 shows "No legend" / "File has a category legend" pill toggle. "No legend" is active by default (`hasLegend: false` in `initialState()`). Source: `Step2Columns.jsx:115-130`.
+2. [PASS] When legend is ON, two required `ColumnSelect`s ("Legend code column", "Legend name column") appear below the toggle. Source: `Step2Columns.jsx:131-136`.
+3. [PASS] Legend columns block the Next button when unset: `columnMappingIsComplete` returns false when `hasLegend && (legendCodeCol == null || legendNameCol == null)`. Source: `ImportModal.jsx:138`.
+4. [PASS] Numeric-coded category column + legend: `buildInitialCategoryMapping` pre-fills each code found in `legendLookup` with the legend name; checks the legend name case-insensitively against `candidateNames` — `isNew: false` + stored casing if it matches, `isNew: true` + legend literal if not. Codes absent from legend stay on the unselected sentinel. Source: `buildInitialMappings.js:43-61`.
+5. [PASS] Legend ON then OFF clears `categoryMapping` to `new Map()` in `setColumnMapping` so stale prefills don't survive the toggle-off. Source: `ImportModal.jsx:262-275`.
+6. [PASS] Single-account path unchanged: `hasLegend` defaults false, `accountScope` defaults `'single'` — all new code paths gated behind `hasLegend === true` or `accountScope === 'multiple'`. Single-account deterministic path continues to call `buildInitialCategoryMapping(rawCategories, [...outgoingNames, ...incomingNames], legendLookup)` with `legendLookup` null by default. Source: `ImportModal.jsx:374-375`.
+7. [PASS] Multi-account mode: `buildInitialCategoryMappingMulti` groups unique raw categories per account via `uniqueValuesByAccount`, builds per-account `buildInitialCategoryMapping` maps, and returns a flat Map with compound keys `${accountId}|${rawCategory}`. Source: `buildInitialMappings.js:85-96`.
+8. [PASS] Step 3 renders per-account sub-lists in multi mode (`isMultiMode` guard at line 115), each headed `{ACCOUNT_NAMES[accountId]} categories`, each sourcing from `outgoingByAccount[accountId]` / `incomingByAccount[accountId]` and `colorForAccount(accountId, name)`. Compound Map key `${accountId}|${raw}` used. Source: `Step3Values.jsx:124-161`.
+9. [PASS] `buildDraftTransactions` resolves compound key first (`${accountId}|${rawCategory}`) then falls back to plain key — so single-account files with plain-keyed maps continue to resolve correctly. Source: `importTransforms.js:340-349` (confirmed by grep).
+10. [PASS] Multi-account + legend combined: `buildInitialCategoryMappingMulti` passes the shared `legendLookup` to each per-account `buildInitialCategoryMapping` call; each call checks its own `candidateNames` for `isNew` determination independently (same code can be `isNew: false` in one account's sub-list and `isNew: true` in another's). Source: `buildInitialMappings.js:88-95`.
+
+**Bugs found:** None. No concrete reproduced bugs.
+
+**Could not verify (live UI):** All 7 visual/interaction checks listed by senior-frontend-dev require a running browser. Posting visual-verification request below per protocol.
+
+**Visual verification request (for visual-verification role):**
+File: `client/src/components/imports/` — ImportModal wizard, Step 2 + Step 3.
+States to check:
+- (a) Step 2 default state: "No legend" pill active, no code/name column selects visible, Next not blocked.
+- (b) Step 2 with legend ON: two column selects ("Legend code column", "Legend name column") appear; Next blocked until both are set.
+- (c) Step 3 after legend ON + numeric-coded category column: codes present in legend pre-filled with legend name (dropdown shows name, not "— Select a category —"); codes absent from legend show "— Select a category —" sentinel.
+- (d) Legend toggle ON then OFF then Next: Step 3 must show ALL codes as unselected (no stale prefill survives).
+- (e) Step 3 multi-account mode: two headed sub-lists ("Spending categories" / "Savings categories") each rendering independently, same numeric code "3" mappable differently per account.
+- (f) Compound-keyed entries survive Back navigation (Step 3 -> Step 2 -> Step 3): previously mapped values preserved.
+
+### engineering-director — Round 2 sign-off (2026-06-24)
+Dispatched senior-frontend-dev (implement) -> qa-engineer (verify), sequential. Both complete.
+- senior-frontend-dev: 5 files changed (importTransforms.js partial pre-done + buildInitialMappings.js, ImportModal.jsx, Step2Columns.jsx, Step3Values.jsx). Build PASS, changed files lint-clean.
+- qa-engineer: all 10 spec requirements PASS (legend DECISION 1 items 1-5, per-account DECISION 2 items 6-10); regression 120/120 assertions (importMappingTest 48, importDateXlsxTest 12, importLlmTest 60); no bugs.
+- Director spot-check (not rubber-stamped): independently re-read buildInitialMappings.js (legend prefill + compound-key multi), ImportModal.proceedToValues (legend scan reads rawGrid not rows; legend-off clears categoryMapping), Step3Values (per-account vocab sourced from outgoingByAccount[accountId], compound keys, single path plain-key unchanged). All confirmed matching spec.
+- ROUTING SKIPPED (deliberate): product-owner/tech-lead (decisions already on board), security/devops/dba/technical-writer (no endpoint/schema/auth/deploy/external-doc surface — purely client-side, feature doc lives here).
+
+PENDING — visual-verification (live UI), unresolved, escalated to invoker: QA's 6 UI states (legend toggle states, Step3 numeric-code legend prefill rendering, toggle-off prefill purge, per-account sub-list headings/vocab, compound-keyed entries surviving Back nav) require a running browser. As a subagent on stdio MCP transport I have no live Playwright connection; Round-1 attempt was also blocked by a stale :4000 server. Code-level verification stands (120 assertions + source review); interaction/render correctness needs a human or browser-connected check.

@@ -38,13 +38,43 @@ export function uniqueValues(rows, colIndex) {
   return [...seen.values()];
 }
 
+// Like uniqueValues but grouped by resolved accountId — used by Step3Values
+// in multi-account mode to build per-account category sub-lists.
+// Returns Map<accountId, string[]> (only accounts that actually appear in
+// the file and have at least one non-blank category value).
+export function uniqueValuesByAccount(rows, categoryColIndex, accountColIndex, accountMapping) {
+  if (categoryColIndex == null || accountColIndex == null) return new Map();
+  const byAccount = new Map(); // accountId -> Map<lowerRaw, firstSeenRaw>
+  for (const row of rows) {
+    const rawAccount = String(row[accountColIndex] ?? '').trim();
+    // Inline CI lookup against accountMapping
+    let accountId = accountMapping.get(rawAccount);
+    if (accountId == null) {
+      const lower = rawAccount.toLowerCase();
+      for (const [k, v] of accountMapping) {
+        if (String(k).toLowerCase() === lower) { accountId = v; break; }
+      }
+    }
+    if (accountId == null) continue;
+    const rawCat = String(row[categoryColIndex] ?? '').trim();
+    if (!rawCat) continue;
+    if (!byAccount.has(accountId)) byAccount.set(accountId, new Map());
+    const seen = byAccount.get(accountId);
+    const key = rawCat.toLowerCase();
+    if (!seen.has(key)) seen.set(key, rawCat);
+  }
+  return new Map([...byAccount.entries()].map(([aid, seen]) => [aid, [...seen.values()]]));
+}
+
 // Case-insensitive Map lookup: tries an exact key match first (the common,
 // fast case), then falls back to a case-insensitive scan. Used for both
 // account and category raw-value resolution so collapsing uniqueValues()
 // case-insensitively (Fix 5) stays consistent with how buildDraftTransactions
 // resolves each row — a row whose casing differs from the first-seen casing
 // Step 3 displayed would otherwise miss the Map and get wrongly flagged.
-function getCI(map, raw) {
+// Exported so buildInitialMappings.js and Step3Values.jsx can share the same
+// algorithm without re-implementing it.
+export function getCI(map, raw) {
   if (map.has(raw)) return map.get(raw);
   const lower = String(raw).toLowerCase();
   for (const [k, v] of map) {
@@ -307,7 +337,17 @@ export function buildDraftTransactions(rows, columnMapping, categoryMapping, acc
     } else if (!rawCategory) {
       category = UNCATEGORIZED;
     } else {
-      const mapped = getCI(categoryMapping, rawCategory);
+      // In multi-account mode, category mapping uses compound keys
+      // `${accountId}|${rawCategory}` (Decision 2). Try that first when
+      // accountId is known, then fall back to the plain key for single-account
+      // mode or any entry that was seeded without the compound prefix.
+      let mapped;
+      if (columnMapping.accountScope === 'multiple' && accountId != null) {
+        mapped = getCI(categoryMapping, `${accountId}|${rawCategory}`);
+      }
+      if (mapped == null) {
+        mapped = getCI(categoryMapping, rawCategory);
+      }
       if (mapped == null || mapped.name == null) {
         issues.push(`Category "${rawCategory}" is not mapped.`);
       } else {
