@@ -1,6 +1,8 @@
+import XLSX from 'xlsx';
 import db from '../db.js';
 import { ACCOUNTS } from '../constants/categories.js';
 import { isValidNormalCategory } from './categoryService.js';
+import { listTransactionsWithBalance } from './balanceService.js';
 
 // Categories only ever set by the transfer flow, never picked manually on a
 // normal transaction. The transfer-insert path below still writes these
@@ -175,6 +177,97 @@ export function deleteAllTransactions() {
     return result.changes;
   });
   return txn();
+}
+
+const MONTH_ABBREV = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+const MIN_COL_WIDTH = 8;
+const COL_WIDTH_PADDING = 2;
+
+// Computes SheetJS `!cols` widths from the header + data rows only (the
+// row-1 title cell is intentionally excluded — it's a long string confined
+// to column A and would otherwise blow out the Date column's width).
+function computeColWidths(header, dataRows) {
+  return header.map((headerLabel, colIdx) => {
+    let maxLen = String(headerLabel).length;
+    for (const row of dataRows) {
+      const cellLen = String(row[colIdx]).length;
+      if (cellLen > maxLen) maxLen = cellLen;
+    }
+    return { wch: Math.max(maxLen + COL_WIDTH_PADDING, MIN_COL_WIDTH) };
+  });
+}
+
+// Builds an in-memory .xlsx workbook (via SheetJS) covering either a
+// [from, to] date range ("month export") or all-time (no from/to). Reuses
+// balanceService.listTransactionsWithBalance for the row data + running
+// balance (window fn) rather than recomputing anything here — see the
+// frozen contract on the team board (Export endpoint contract).
+//
+// Produces TWO sheets, "Spending" and "Savings" (per FOLLOW-UP BATCH 4):
+// each account's rows (already carrying correct per-account running
+// balances from the window fn, partitioned by account_id) are filtered
+// into their own sheet rather than recomputed. Both sheets are always
+// present, even if a given account has zero rows in range.
+export function buildTransactionsWorkbook({ from, to } = {}) {
+  const isAllTime = !from && !to;
+  const rows = isAllTime
+    ? listTransactionsWithBalance({})
+    : listTransactionsWithBalance({ from, to });
+
+  const accounts = db.prepare('SELECT id, name FROM accounts').all();
+  const accountNameById = new Map(accounts.map((a) => [a.id, a.name]));
+
+  const monthLabelSuffix = isAllTime
+    ? null
+    : (() => {
+      // from is 'YYYY-MM-DD'; derive "Mon YYYY" from its year/month.
+      const [year, month] = String(from).split('-');
+      const monthIdx = Number(month) - 1;
+      const monthLabel = MONTH_ABBREV[monthIdx] ?? month;
+      return `${monthLabel} ${year}`;
+    })();
+
+  const header = ['Date', 'Account', 'Description', 'Amount', 'Direction', 'Category', 'Running Balance'];
+
+  function rowToAoa(row) {
+    return [
+      row.date,
+      accountNameById.get(row.account_id) ?? String(row.account_id),
+      row.comment,
+      row.amount,
+      row.direction === 'in' ? 'In' : 'Out',
+      row.category,
+      row.running_balance,
+    ];
+  }
+
+  function buildSheet(accountId, sheetName) {
+    const accountName = accountNameById.get(accountId) ?? sheetName;
+    const title = isAllTime
+      ? `${accountName} — All Transactions`
+      : `${accountName} — ${monthLabelSuffix}`;
+    const dataRows = rows
+      .filter((row) => row.account_id === accountId)
+      .map(rowToAoa);
+
+    const aoa = [[title], header, ...dataRows];
+    const sheet = XLSX.utils.aoa_to_sheet(aoa);
+    sheet['!cols'] = computeColWidths(header, dataRows);
+    return sheet;
+  }
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, buildSheet(ACCOUNTS.SPENDING, 'Spending'), 'Spending');
+  XLSX.utils.book_append_sheet(workbook, buildSheet(ACCOUNTS.SAVINGS, 'Savings'), 'Savings');
+
+  const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  const filename = isAllTime ? 'transactions-all.xlsx' : `transactions-${from.slice(0, 7)}.xlsx`;
+
+  return { buffer, filename };
 }
 
 export { ValidationError };

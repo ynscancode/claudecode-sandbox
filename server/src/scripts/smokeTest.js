@@ -77,6 +77,20 @@ async function main() {
   const hasTransferCat = monthly.byCategoryOut.some((c) => c.category === 'transfer-out');
   assert(!hasTransferCat, 'transfer-out excluded from monthly breakdown');
 
+  console.log('8b. Transaction activity: months, earliest/latest, per-account presence');
+  const activity = await req('GET', '/summary/activity');
+  console.log(activity);
+  assert(Array.isArray(activity.all.months), 'activity.all.months is an array');
+  assert(activity.all.months.includes('2026-06'), '2026-06 present in activity.all.months');
+  assert(activity.all.earliest === activity.all.months[0], 'activity.all.earliest matches first month');
+  assert(activity.all.latest === activity.all.months[activity.all.months.length - 1], 'activity.all.latest matches last month');
+  assert(activity.byAccount['1'] !== undefined, 'byAccount has string key "1" (Spending)');
+  assert(activity.byAccount['2'] !== undefined, 'byAccount has string key "2" (Savings)');
+  assert(activity.byAccount['1'].months.includes('2026-06'), 'Spending byAccount includes 2026-06 (has food + transfer legs)');
+  assert(activity.byAccount['2'].months.includes('2026-06'), 'Savings byAccount includes 2026-06 (has transfer legs)');
+  const sortedCopy = [...activity.all.months].sort();
+  assert(JSON.stringify(sortedCopy) === JSON.stringify(activity.all.months), 'activity.all.months is sorted ascending');
+
   console.log('9. Edit transfer1 amount, confirm both legs updated');
   await req('PUT', `/transactions/${transfer1.outRow.id}`, { amount: 60 });
   const txnsAfterEdit = await req('GET', '/transactions');

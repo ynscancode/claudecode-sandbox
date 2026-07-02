@@ -6,10 +6,13 @@ import {
   updateTransaction,
   deleteTransaction,
   deleteAllTransactions,
+  buildTransactionsWorkbook,
   ValidationError,
 } from '../services/transactionService.js';
 
 const router = Router();
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function handleError(res, err) {
   if (err instanceof ValidationError || err.statusCode === 400) {
@@ -26,6 +29,40 @@ router.get('/', (req, res) => {
   const { from, to, account_id } = req.query;
   const accountId = account_id ? Number(account_id) : undefined;
   res.json(listTransactionsWithBalance({ from, to, accountId }));
+});
+
+// Excel export — see the "Export endpoint contract" on the team board.
+// `?all=true` exports the full history; otherwise `from`/`to` (both
+// required, YYYY-MM-DD) scope a single range. Reuses
+// buildTransactionsWorkbook (transactionService.js), which itself reuses
+// balanceService.listTransactionsWithBalance for rows/running balance.
+router.get('/export', (req, res) => {
+  try {
+    const { from, to, all } = req.query;
+    const isAllTime = all === 'true' || all === '1';
+
+    if (isAllTime) {
+      const { buffer, filename } = buildTransactionsWorkbook({});
+      res.set({
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+      });
+      return res.send(buffer);
+    }
+
+    if (!from || !to || !DATE_RE.test(from) || !DATE_RE.test(to)) {
+      throw new ValidationError('from and to (YYYY-MM-DD) are required unless all=true');
+    }
+
+    const { buffer, filename } = buildTransactionsWorkbook({ from, to });
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    });
+    res.send(buffer);
+  } catch (err) {
+    handleError(res, err);
+  }
 });
 
 router.post('/', (req, res) => {
