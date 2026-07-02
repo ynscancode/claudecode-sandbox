@@ -2,16 +2,18 @@ import { useEffect, useState, useCallback } from 'react'
 import { api } from '../api/client.js'
 import TransactionList from '../components/transactions/TransactionList.jsx'
 import TransactionModal from '../components/transactions/TransactionModal.jsx'
-import ImportModal from '../components/imports/ImportModal.jsx'
+import ExportModal from '../components/transactions/ExportModal.jsx'
 import ClearHistoryModal from '../components/transactions/ClearHistoryModal.jsx'
 import MonthSwitcher from '../components/layout/MonthSwitcher.jsx'
 import { currentMonthStr, monthRangeFor, monthLabel } from '../utils/dateUtils.js'
 import { formatCurrency } from '../utils/format.js'
 import { ACCOUNT_NAMES } from '../constants/categories.js'
+import { useTransactionActivity } from '../contexts/transactionActivity.js'
 
 const ACCOUNT_FILTERS = [['all', 'All'], ...Object.entries(ACCOUNT_NAMES)]
 
 export default function TransactionsPage() {
+  const activity = useTransactionActivity()
   const [month, setMonth] = useState(currentMonthStr())
   const [accountFilter, setAccountFilter] = useState('all')
   const [transactions, setTransactions] = useState([])
@@ -20,7 +22,7 @@ export default function TransactionsPage() {
   const [editingId, setEditingId] = useState(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState('normal')
-  const [importOpen, setImportOpen] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
   const [clearOpen, setClearOpen] = useState(false)
   const [clearedMessage, setClearedMessage] = useState(null)
 
@@ -49,18 +51,21 @@ export default function TransactionsPage() {
     await api.createTransaction(data)
     await loadTransactions()
     refreshAccounts()
+    activity.refetch()
   }
 
   async function handleCreateTransfer(data) {
     await api.createTransfer(data)
     await loadTransactions()
     refreshAccounts()
+    activity.refetch()
   }
 
   async function handleSaveEdit(id, data) {
     await api.updateTransaction(id, data)
     setEditingId(null)
     await loadTransactions()
+    activity.refetch()
   }
 
   async function handleDelete(txn) {
@@ -71,6 +76,7 @@ export default function TransactionsPage() {
     await api.deleteTransaction(txn.id)
     await loadTransactions()
     refreshAccounts()
+    activity.refetch()
   }
 
   function openModal(mode) {
@@ -78,15 +84,11 @@ export default function TransactionsPage() {
     setModalOpen(true)
   }
 
-  async function handleImported() {
-    await loadTransactions()
-    refreshAccounts()
-  }
-
   async function handleCleared() {
     setClearOpen(false)
     await loadTransactions()
     refreshAccounts()
+    activity.refetch()
     setClearedMessage('All transaction history has been deleted.')
   }
 
@@ -100,7 +102,7 @@ export default function TransactionsPage() {
         <div className="page-header-actions">
           <button type="button" className="btn" onClick={() => openModal('normal')}>+ Transaction</button>
           <button type="button" className="btn btn-secondary" onClick={() => openModal('transfer')}>⇄ Transfer</button>
-          <button type="button" className="btn btn-secondary" onClick={() => setImportOpen(true)}>Import</button>
+          <button type="button" className="btn btn-secondary" onClick={() => setExportOpen(true)}>Export</button>
           <span className="page-header-actions-divider" aria-hidden="true" />
           <button type="button" className="btn-danger" onClick={() => setClearOpen(true)}>Clear all history</button>
         </div>
@@ -111,19 +113,27 @@ export default function TransactionsPage() {
       )}
 
       <div className="filter-strip">
-        <MonthSwitcher month={month} onChange={setMonth} />
-        <span className="filter-strip-label">Account</span>
-        <div className="pill-group">
-          {ACCOUNT_FILTERS.map(([id, name]) => (
-            <button
-              key={id}
-              type="button"
-              className={`pill-btn ${accountFilter === id ? 'active' : ''}`}
-              onClick={() => setAccountFilter(id)}
-            >
-              {name}
-            </button>
-          ))}
+        <MonthSwitcher
+          month={month}
+          onChange={setMonth}
+          showActivityIndicator
+          showJumpToEarliest
+          activity={accountFilter === 'all' ? activity.all : activity.byAccount[accountFilter]}
+        />
+        <div className="filter-strip-account">
+          <span className="filter-strip-label">Account</span>
+          <div className="pill-group">
+            {ACCOUNT_FILTERS.map(([id, name]) => (
+              <button
+                key={id}
+                type="button"
+                className={`pill-btn ${accountFilter === id ? 'active' : ''}`}
+                onClick={() => setAccountFilter(id)}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -158,8 +168,8 @@ export default function TransactionsPage() {
         />
       )}
 
-      {importOpen && (
-        <ImportModal onClose={() => setImportOpen(false)} onImported={handleImported} />
+      {exportOpen && (
+        <ExportModal month={month} activity={activity.all} onClose={() => setExportOpen(false)} />
       )}
 
       {clearOpen && (

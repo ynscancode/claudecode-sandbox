@@ -51,6 +51,14 @@ export function monthLabel(monthStr) {
   return new Date(year, month - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 }
 
+// Short "Mon YYYY" form (e.g. "Jan 2025") used for the compact "Earliest: ..."
+// hint in MonthSwitcher's activity indicator, where the full monthLabel()
+// (e.g. "January 2025") would be too wide for the inline hint text.
+export function monthLabelShort(monthStr) {
+  const [year, month] = monthStr.split('-').map(Number);
+  return new Date(year, month - 1, 1).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+}
+
 export function dayLabel(dateStr) {
   const [year, month, day] = dateStr.split('-').map(Number);
   return new Date(year, month - 1, day).toLocaleDateString(undefined, {

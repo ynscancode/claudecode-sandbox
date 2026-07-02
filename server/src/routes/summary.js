@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getDailySummary, getMonthlySummary } from '../services/summaryService.js';
+import { getDailySummary, getMonthlySummary, getTransactionActivity } from '../services/summaryService.js';
 import { isValidDateStr, isValidMonthStr } from '../utils/dateUtils.js';
 
 const router = Router();
@@ -18,6 +18,10 @@ router.get('/monthly', (req, res) => {
     return res.status(400).json({ error: 'month query param required in YYYY-MM format' });
   }
   res.json(getMonthlySummary(month));
+});
+
+router.get('/activity', (req, res) => {
+  res.json(getTransactionActivity());
 });
 
 export default router;

@@ -714,7 +714,7 @@ select {
 
 .filter-strip {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 14px;
   flex-wrap: wrap;
   background: var(--surface);
@@ -729,6 +729,25 @@ select {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--muted);
+}
+
+/* Groups the Account label + pill-group together and pushes them to the
+   far right of `.filter-strip` (`margin-left: auto`), clear of the
+   MonthSwitcher and its now-single-line, potentially-wide activity info to
+   its left — robust to caption length since it doesn't depend on a fixed
+   gap value. `align-items: center` centers the short label text against
+   the pill-group's height internally; `.filter-strip` itself stays
+   `align-items: flex-start` (needed so `.month-switcher-wrap`'s reserved
+   bottom padding for the activity info doesn't skew alignment), and
+   `.pill-group`/`.month-switcher` render at almost the same height, so a
+   small `margin-top` nudges this group's visual center onto the
+   switcher's input row rather than its own top edge. */
+.filter-strip-account {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+  margin-top: 3px;
 }
 
 .account-summary-strip {
@@ -1439,6 +1458,121 @@ td {
 
 .month-switcher-input:hover {
   background: var(--surface-2);
+}
+
+/* ---------- Month activity indicator (occupied/empty months) ---------- */
+
+/* The switcher row (chevrons + input) must always stay a fixed, natural
+   width regardless of the activity-info line below it — a long caption
+   ("Before your transaction history.", etc.) must never widen this column
+   and, in turn, must never push flex siblings (e.g. the Account pill-group
+   on Transactions, BreakdownControls on Overview) to the right. Achieved by
+   taking `.month-activity-info` out of normal flow (position: absolute,
+   anchored to this wrap) so it can never contribute to this container's
+   auto-width calculation; `align-items: flex-start` keeps the switcher
+   itself from stretching to any wider cross-size.
+
+   `--month-activity-reserve` is sized for a SINGLE line of info — caption,
+   "Earliest:" hint, and "Jump to earliest" all render inline on one row
+   now (`.month-activity-info` is `flex-wrap: nowrap` / `white-space: nowrap`,
+   see below) — and doubles as both `padding-bottom` (so this wrap's own
+   box, and therefore whatever flex row/sibling follows it in normal flow,
+   is actually pushed down by that much) AND the reference
+   `.month-activity-info` subtracts from its own `top: 100%` below. That
+   second part matters: percentages on an absolutely positioned element's
+   `top` resolve against the *padding box* of its containing block (this
+   wrap), so a bare `top: 100%` would place the info exactly at the bottom
+   of this padding-bottom reservation — i.e. AFTER the reserved space, not
+   inside it — meaning the info would always overflow onto the next
+   sibling by its own height regardless of how large padding-bottom was
+   made. `top: calc(100% - var(--month-activity-reserve))` anchors the
+   info to the SWITCHER's bottom edge instead (100% of the padded box
+   minus the padding-bottom just cancels the padding, landing at the
+   content edge), so the info renders growing *into* the reserved gap
+   rather than past it. Single-line text CAN overflow the wrap's own
+   width horizontally on a long caption (the wrap stays fixed-width per
+   the above) — that's expected and handled by giving neighboring
+   controls extra horizontal clearance at each call site rather than
+   wrapping the text again. */
+.month-switcher-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  position: relative;
+  --month-activity-reserve: calc(8px + 1.4 * var(--font-xs));
+  padding-bottom: var(--month-activity-reserve);
+}
+
+.month-activity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin: 0 2px 0 6px;
+  flex-shrink: 0;
+}
+
+/* Filled = occupied month; hollow (outline only) = empty month. Shape
+   distinction (solid vs. outline), not just a color swap, so the state
+   still reads without color perception (WCAG 1.4.1). */
+.month-activity-dot-filled {
+  background: var(--money-in);
+}
+
+.month-activity-dot-hollow {
+  background: transparent;
+  border: 1.5px solid var(--muted);
+}
+
+.month-activity-info {
+  position: absolute;
+  top: calc(100% - var(--month-activity-reserve));
+  left: 0;
+  /* No `right: 0` here (unlike the old 2-line version): a single-line
+     caption + hint can be wider than the switcher itself, and pinning
+     `right: 0` would clip it back down to the switcher's fixed width.
+     Letting the box grow to its natural (nowrap) content width is safe —
+     it's still `position: absolute`, so it still can't feed back into
+     `.month-switcher-wrap`'s own width/layout. */
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 0 4px;
+  font: 500 var(--font-xs)/1.4 var(--font-ui);
+  color: var(--muted);
+  min-height: 16px;
+}
+
+.month-activity-caption {
+  white-space: nowrap;
+}
+
+.month-activity-caption:empty {
+  display: none;
+}
+
+.month-activity-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.month-activity-jump {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font: 500 var(--font-xs)/1.4 var(--font-ui);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.month-activity-jump:hover {
+  color: var(--text);
 }
 
 .budget-row {

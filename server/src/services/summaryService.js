@@ -1,4 +1,5 @@
 import db from '../db.js';
+import { ACCOUNTS } from '../constants/categories.js';
 
 export function getDailySummary(date) {
   const combined = db
@@ -81,5 +82,47 @@ export function getMonthlySummary(month) {
     totalOut: totals.total_out,
     byCategoryIn,
     byCategoryOut,
+  };
+}
+
+export function getTransactionActivity() {
+  const rows = db
+    .prepare(`
+      SELECT account_id, strftime('%Y-%m', date) AS month
+      FROM transactions
+      GROUP BY account_id, strftime('%Y-%m', date)
+      ORDER BY month
+    `)
+    .all();
+
+  const byAccount = {};
+  for (const id of Object.values(ACCOUNTS)) {
+    byAccount[String(id)] = { months: [], earliest: null, latest: null };
+  }
+
+  const allMonths = new Set();
+  for (const row of rows) {
+    const key = String(row.account_id);
+    if (!byAccount[key]) {
+      byAccount[key] = { months: [], earliest: null, latest: null };
+    }
+    byAccount[key].months.push(row.month);
+    allMonths.add(row.month);
+  }
+
+  for (const scope of Object.values(byAccount)) {
+    scope.earliest = scope.months.length ? scope.months[0] : null;
+    scope.latest = scope.months.length ? scope.months[scope.months.length - 1] : null;
+  }
+
+  const months = Array.from(allMonths).sort();
+
+  return {
+    all: {
+      months,
+      earliest: months.length ? months[0] : null,
+      latest: months.length ? months[months.length - 1] : null,
+    },
+    byAccount,
   };
 }

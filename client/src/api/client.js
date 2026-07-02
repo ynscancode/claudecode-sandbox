@@ -46,6 +46,7 @@ export const api = {
 
   getDailySummary: (date) => request('GET', `/summary/daily?date=${date}`),
   getMonthlySummary: (month) => request('GET', `/summary/monthly?month=${month}`),
+  getTransactionActivity: () => request('GET', '/summary/activity'),
 
   getBudgets: (month) => request('GET', `/budgets?month=${month}`),
   setBudget: ({ month, category, amount }) => request('PUT', '/budgets', { month, category, amount }),

@@ -6,6 +6,7 @@ import { computeDailyInsights } from '../utils/insights.js'
 import { ACCOUNTS } from '../constants/categories.js'
 import { useDailyBudget } from '../hooks/useDailyBudget.js'
 import { useCategories } from '../contexts/categories.js'
+import { useTransactionActivity } from '../contexts/transactionActivity.js'
 import MonthSwitcher from '../components/layout/MonthSwitcher.jsx'
 import TransactionModal from '../components/transactions/TransactionModal.jsx'
 import DonutChart from '../components/breakdown/DonutChart.jsx'
@@ -87,6 +88,7 @@ function DonutCard({ icon, iconColor, label, centerLabel, cats, mode }) {
 
 export default function DashboardPage() {
   const { outgoingFor, colorFor } = useCategories()
+  const activity = useTransactionActivity()
   const [accounts, setAccounts] = useState([])
   const [monthTransactions, setMonthTransactions] = useState([])
   const [breakdownTransactions, setBreakdownTransactions] = useState([])
@@ -559,10 +561,31 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="card-row" style={{ marginTop: 30, marginBottom: 12 }}>
-        <h2 style={{ margin: 0, font: '600 16px/1 var(--font-ui)', letterSpacing: '-.01em' }}>Breakdown</h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <MonthSwitcher month={selectedMonth} onChange={setSelectedMonth} />
+      {/* alignItems: 'flex-start' overrides `.card-row`'s default
+          `align-items: center` — with center, the h2 (short, ~16px) would
+          center against the tallest sibling, which is the switcher/controls
+          div once `.month-switcher-wrap`'s reserved bottom padding (for the
+          single-line activity info) is counted, pushing "Breakdown" visibly
+          below the switcher's actual input row. flex-start top-aligns both
+          instead, and the h2's own marginTop then nudges it down onto the
+          switcher's ~40px input row specifically (not the wrap's full,
+          taller box). The inner row's gap is widened (12 -> 40) and the
+          whole switcher+controls block is also pushed further right isn't
+          the goal here — rather, the WIDER gap shifts the MonthSwitcher
+          (left item) further LEFT relative to BreakdownControls (right
+          item, still flush against the row's right edge via `.card-row`'s
+          `justify-content: space-between`), so the switcher's now-wider,
+          single-line activity info has room to extend without reaching
+          BreakdownControls. */}
+      <div className="card-row" style={{ marginTop: 30, marginBottom: 12, alignItems: 'flex-start' }}>
+        <h2 style={{ margin: 0, marginTop: 13, font: '600 16px/1 var(--font-ui)', letterSpacing: '-.01em' }}>Breakdown</h2>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 40 }}>
+          <MonthSwitcher
+            month={selectedMonth}
+            onChange={setSelectedMonth}
+            showActivityIndicator
+            activity={activity.all}
+          />
           <BreakdownControls mode={breakdownMode} onModeChange={setBreakdownMode} />
         </div>
       </div>
