@@ -498,6 +498,7 @@ select {
   font-weight: 600;
   font-size: clamp(20px, 2.4vw, 26px);
   margin-top: 8px;
+  white-space: nowrap;
 }
 
 .daily-spending-header {
@@ -561,6 +562,35 @@ select {
 .bar-chart-bar-wrap:hover .bar-chart-tooltip {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+/* Edge-anchored tooltip variants: applied (via DashboardPage.jsx) to bars
+   whose centered 150px-min-width tooltip would otherwise overflow the
+   chart's own bounds - left-anchored for bars near the chart's left edge,
+   right-anchored near the right edge. These drop the translateX(-50%)
+   centering entirely (left:0/right:0 anchors the tooltip's own edge to the
+   bar-wrap's edge instead), so the tooltip grows inward, toward the middle
+   of the chart, rather than past it. Middle bars keep the base centered
+   rule (no modifier class) unchanged, on any viewport width, so desktop
+   behavior is unaffected. */
+.bar-chart-tooltip--left {
+  left: 0;
+  right: auto;
+  transform: translateY(4px);
+}
+
+.bar-chart-bar-wrap:hover .bar-chart-tooltip--left {
+  transform: translateY(0);
+}
+
+.bar-chart-tooltip--right {
+  left: auto;
+  right: 0;
+  transform: translateY(4px);
+}
+
+.bar-chart-bar-wrap:hover .bar-chart-tooltip--right {
+  transform: translateY(0);
 }
 
 .bar-chart-tooltip-day {
@@ -2079,22 +2109,6 @@ td {
     padding: 12px 14px;
   }
 
-  /* Daily-spending bar chart tooltips (`.bar-chart-tooltip`, hover-only,
-     absolutely positioned + horizontally centered on their bar) can spill
-     far past either edge of a 375px viewport on the outermost bars,
-     contributing stray page width beyond what `body { overflow-x: hidden }`
-     merely hides. `overflow-x: clip` (not `hidden`/`auto` - clip supports
-     independent per-axis overflow with no scroll container/scrollbar side
-     effects) removes that horizontal spill at its source. Tooltips render
-     ABOVE their bar via `bottom: calc(100% + 8px)`, so clipping only the
-     x-axis leaves them fully visible vertically - `overflow-y` is left at
-     its default (visible) here since `.bar-chart` sets no explicit value
-     for it. Tooltips are hover-only (no effect on touch), so this costs
-     nothing functionally on mobile. */
-  .bar-chart {
-    overflow-x: clip;
-  }
-
   /* Transactions filter strip: on desktop `.filter-strip-account` uses
      `margin-left: auto` to pin the Account label+pills to the far right of
      the same row as the MonthSwitcher. `.filter-strip` already has
@@ -2155,7 +2169,14 @@ td {
   }
 
   .money-flow-value {
-    font-size: clamp(16px, 5.5vw, 22px);
+    /* Smaller min/vw factor than the base rule: the base's clamp(20px,
+       2.4vw, 26px) would settle near its 26px max at typical mobile card
+       widths, and this value now has `white-space: nowrap` (base rule) -
+       nowrap without shrinking the font would overflow the ~92-98px
+       .money-flow-grid cells on a wide value like "+$12,345.75". This
+       clamp keeps the widest realistic value inside one cell with no
+       card-width overflow. */
+    font-size: clamp(14px, 4.2vw, 19px);
   }
 
   /* Add/Edit transaction modal + import-wizard column mapping: both are a

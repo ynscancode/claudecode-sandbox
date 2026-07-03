@@ -621,7 +621,18 @@ export default function DashboardPage() {
             {hasDailyBudget && (
               <div className="budget-line" style={{ bottom: `${Math.min(98, budgetPct)}%` }} />
             )}
-            {dailyBars.map((bar, i) => (
+            {dailyBars.map((bar, i) => {
+              // Edge-anchored tooltip alignment: a centered 150px-min-width
+              // tooltip only fits when the bar is >=~75px from each chart
+              // edge - on a narrow (mobile) chart that's roughly the outer
+              // ~24% of bars on each side. Bars in that outer band get a
+              // left/right-anchored tooltip (grows inward, never past the
+              // chart edge); the middle ~50% keep the base centered style.
+              const tooltipAlign =
+                i < dailyBars.length * 0.25 ? 'left' : i > dailyBars.length * 0.75 ? 'right' : 'center';
+              const tooltipClassName =
+                tooltipAlign === 'center' ? 'bar-chart-tooltip' : `bar-chart-tooltip bar-chart-tooltip--${tooltipAlign}`;
+              return (
               <div
                 key={i}
                 className="bar-chart-bar-wrap"
@@ -630,7 +641,7 @@ export default function DashboardPage() {
                   className="bar-chart-bar"
                   style={{ height: `${bar.height}%`, background: bar.bg, opacity: bar.opacity }}
                 />
-                <div className="bar-chart-tooltip" role="tooltip">
+                <div className={tooltipClassName} role="tooltip">
                   <div className="bar-chart-tooltip-day">{monthLabel(selectedMonth).split(' ')[0]} {bar.day}</div>
                   <div className="bar-chart-tooltip-total">{formatOutflow(bar.total)} spent</div>
                   {bar.biggest ? (
@@ -643,7 +654,8 @@ export default function DashboardPage() {
                   )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
           <div className="bar-chart-footer">
             <span>{monthLabel(selectedMonth).split(' ')[0]} 1</span>
