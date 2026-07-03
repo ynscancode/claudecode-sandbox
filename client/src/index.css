@@ -1927,3 +1927,218 @@ td {
   overflow-y: auto;
   margin-bottom: 12px;
 }
+
+/* =========================================================================
+   MOBILE (<= 768px)
+   Everything above this point is the desktop layout — index.css had zero
+   @media queries before this block, which is why phones (~375px) rendered
+   an unreformatted desktop layout (fixed-column grids, wide gaps, tiny tap
+   targets). This single consolidated block is the only place mobile
+   overrides live; nothing here changes desktop (>768px) rendering.
+   ========================================================================= */
+@media (max-width: 768px) {
+
+  /* ---- Guard against page-level horizontal scroll ----
+     `.month-activity-info` (see the desktop comment above
+     `.month-switcher-wrap`) is intentionally position:absolute and, on
+     desktop, allowed to grow past its container's width on a long
+     single-line caption. On a narrow viewport that same behavior could
+     push content past the edge of the page. We re-constrain it below
+     (max-width + wrapping) so it shouldn't happen in practice, but
+     `overflow-x: hidden` on body is cheap insurance against any edge case
+     — it only clips the *document's* own horizontal scrolling. It has no
+     effect on `.table-card`, which sets its own `overflow-x: auto` and
+     manages its own scroll region independently of any ancestor's
+     overflow property — the transactions table must and does still
+     scroll horizontally inside its card. */
+  body {
+    overflow-x: hidden;
+  }
+
+  /* ---- App header / nav ----
+     CSS-only: kept the nav horizontal and tappable via tighter spacing
+     rather than introducing a hamburger + JS state, per the task brief.
+     `.app-header`/`.app-header-left`/`.app-nav` already have
+     `flex-wrap: wrap`, so if brand + nav + the theme pill-group still
+     don't fit one row at very narrow widths, the theme switcher wraps
+     to its own row below — an acceptable, non-broken fallback. */
+  .app-header {
+    padding: 10px 16px;
+    gap: 10px;
+  }
+
+  .app-header-left {
+    gap: 14px;
+  }
+
+  .app-nav {
+    gap: 12px;
+  }
+
+  .app-nav a {
+    font-size: 13px;
+  }
+
+  /* Frees up horizontal room in the header row — the theme pill buttons
+     ("Refined"/"Editorial"/"Terminal") remain self-explanatory without the
+     "Style" caption in front of them. */
+  .pill-group-label {
+    display: none;
+  }
+
+  /* ---- Page header ---- */
+  .page-header-row {
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+
+  .page-header-actions {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  /* ---- Tap targets ----
+     Bump the smallest interactive controls toward a more comfortable
+     touch size; desktop values are untouched since these rules only fire
+     inside this media query. */
+  .pill-btn {
+    padding: 9px 13px;
+  }
+
+  .month-switcher-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .btn-sm {
+    padding: 7px 10px;
+  }
+
+  .modal-close {
+    padding: 8px 10px;
+    font-size: 24px;
+  }
+
+  /* ---- Card / strip / modal padding ----
+     Desktop's 22-24px padding eats a disproportionate share of a 375px
+     viewport's width; tighten it up so content has more room. */
+  .card {
+    padding: 16px;
+  }
+
+  .modal-panel {
+    padding: 16px;
+  }
+
+  .filter-strip,
+  .account-summary-strip {
+    padding: 12px 14px;
+  }
+
+  /* Transactions filter strip: on desktop `.filter-strip-account` uses
+     `margin-left: auto` to pin the Account label+pills to the far right of
+     the same row as the MonthSwitcher. `.filter-strip` already has
+     `flex-wrap: wrap`, so on mobile this group naturally wraps to its own
+     row below the switcher — cancel the auto-margin (which only makes
+     sense pinning within a single row) and left-align it there instead of
+     leaving stale right-alignment on an otherwise-full-width wrapped row. */
+  .filter-strip-account {
+    margin-left: 0;
+    margin-top: 10px;
+  }
+
+  /* ---- Month switcher activity info ----
+     Desktop deliberately renders this as ONE nowrap line that's allowed to
+     grow past `.month-switcher-wrap`'s own (fixed, switcher-driven) width
+     — see the long comment above `.month-switcher-wrap`. On a 375px
+     viewport a long caption + "Earliest:" hint + jump link as one nowrap
+     line can run past the edge of the screen. Re-enable wrapping here,
+     but constrain it to a comfortable reading width via `max-width`
+     (viewport-relative, not the narrow switcher's own width — constraining
+     it to the switcher's ~150px width would force many short, tall lines
+     instead of a readable paragraph) rather than re-adding `right: 0`
+     (which WOULD tie it back to the switcher's width and reintroduce that
+     problem). This only changes behavior inside this media query — the
+     width-decoupling fix documented above `.month-switcher-wrap` (the
+     wrap's own width is driven solely by the switcher, never by this info
+     line) is untouched at any width. */
+  .month-switcher-wrap {
+    /* Reserve enough vertical space for up to ~3 wrapped lines on mobile
+       (caption / hint / jump-link may each land on their own line at this
+       width) instead of desktop's 1-line reserve. */
+    --month-activity-reserve: calc(20px + 4.2 * var(--font-xs));
+  }
+
+  .month-activity-info {
+    max-width: min(320px, calc(100vw - 48px));
+    white-space: normal;
+    flex-wrap: wrap;
+  }
+
+  .month-activity-caption,
+  .month-activity-hint {
+    white-space: normal;
+  }
+
+  /* ---- Fixed-column grids that don't reformat on their own ---- */
+
+  /* Money in / out / net tiles: `repeat(3, 1fr)` (not auto-fit) doesn't
+     shrink below its content's natural width, which is how a 3-column
+     currency grid overflows a 375px card. `minmax(0, 1fr)` lets the
+     tracks shrink below content size (wrapping/truncating instead of
+     forcing the grid wider than its container) while keeping the
+     3-column layout that still reads fine at this width once the gap and
+     value font shrink a bit. */
+  .money-flow-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .money-flow-value {
+    font-size: clamp(16px, 5.5vw, 22px);
+  }
+
+  /* Add/Edit transaction modal + import-wizard column mapping: both are a
+     literal `1fr 1fr` with no auto-fit fallback, so two form fields are
+     forced side-by-side no matter how narrow the modal gets. Stack to one
+     column on mobile. */
+  .modal-form-grid,
+  .import-mapping-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* In vs. out comparison bars (Breakdown section): the fixed 48px gap
+     between two 64px-wide columns is more spacing than a 375px card can
+     spare. Shrinking the gap (not the bar columns themselves) keeps both
+     bars, their value labels, and the "MONEY IN"/"MONEY OUT" captions
+     intact and legible while letting the whole comparison fit without
+     the card scrolling. */
+  .inout-compare {
+    gap: 20px;
+    height: 120px;
+  }
+
+  .inout-compare-bar-col {
+    width: 56px;
+  }
+
+  .inout-compare-track {
+    height: 84px;
+  }
+
+  /* Donut + legend (Breakdown section): `.donut-layout` already
+     flex-wraps, but the donut's fixed 150px plus the legend's 200px
+     min-width together exceed a 375px card's content width, forcing an
+     early wrap that leaves the donut oddly isolated on its own row.
+     Shrinking both a bit lets more phones fit both side by side before
+     falling back to the same wrap-to-stack behavior on the narrowest
+     screens. */
+  .donut-wrap {
+    width: 120px;
+    height: 120px;
+  }
+
+  .donut-legend {
+    min-width: 160px;
+  }
+}
