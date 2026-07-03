@@ -1236,6 +1236,11 @@ td {
   padding: 20px;
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(3px);
+  /* A modal taller than the viewport (e.g. CategoryManagerModal with a long
+     category list) had no way to scroll into view — the overlay clipped it
+     with no scrollbar. overflow-y lets the viewport itself scroll if the
+     panel's own max-height (below) still isn't enough breathing room. */
+  overflow-y: auto;
 }
 
 .modal-panel {
@@ -1244,6 +1249,13 @@ td {
   border-radius: var(--radius);
   padding: 24px;
   width: min(540px, 100%);
+  /* Cap the panel at the viewport height minus the overlay's 20px top+bottom
+     padding, and let the panel scroll its own content — without this, a
+     modal taller than the viewport overflowed off the top with no way to
+     reach its close button. 100dvh (not vh) accounts for mobile browser
+     chrome. */
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
   animation: fadeUp 0.25s ease both;
 }
@@ -1253,6 +1265,12 @@ td {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 18px;
+  /* Keep the close button reachable/visible while a tall panel's body
+     scrolls beneath it. */
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
 }
 
 .modal-head h2 {
@@ -2041,11 +2059,40 @@ td {
 
   .modal-panel {
     padding: 16px;
+    /* Recompute against the mobile overlay's own 20px top+bottom padding
+       (unchanged from desktop) - kept explicit here for clarity alongside
+       the other mobile modal overrides. */
+    max-height: calc(100dvh - 40px);
+  }
+
+  .modal-overlay {
+    /* Anchor tall modals to the top of the viewport on mobile instead of
+       vertically centering them - centering a modal taller than the
+       viewport pushes its top (and close button) above y=0, off-screen
+       and unreachable. Desktop keeps `align-items: center` from the base
+       rule. */
+    align-items: flex-start;
   }
 
   .filter-strip,
   .account-summary-strip {
     padding: 12px 14px;
+  }
+
+  /* Daily-spending bar chart tooltips (`.bar-chart-tooltip`, hover-only,
+     absolutely positioned + horizontally centered on their bar) can spill
+     far past either edge of a 375px viewport on the outermost bars,
+     contributing stray page width beyond what `body { overflow-x: hidden }`
+     merely hides. `overflow-x: clip` (not `hidden`/`auto` - clip supports
+     independent per-axis overflow with no scroll container/scrollbar side
+     effects) removes that horizontal spill at its source. Tooltips render
+     ABOVE their bar via `bottom: calc(100% + 8px)`, so clipping only the
+     x-axis leaves them fully visible vertically - `overflow-y` is left at
+     its default (visible) here since `.bar-chart` sets no explicit value
+     for it. Tooltips are hover-only (no effect on touch), so this costs
+     nothing functionally on mobile. */
+  .bar-chart {
+    overflow-x: clip;
   }
 
   /* Transactions filter strip: on desktop `.filter-strip-account` uses

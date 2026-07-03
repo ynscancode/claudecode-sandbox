@@ -743,6 +743,87 @@ BATCH 8 COMPLETE. Routing: junior-frontend-dev (1-file UI addition) -> director 
 
 ---
 
+# MOBILE LAYOUT FIX (director-diagnosed, 2026-07-03) — Overview overflow + Budget card collision
+
+## senior-frontend-dev
+
+**Both fixes DONE, per the Director's pre-diagnosed root causes (no re-diagnosis performed).**
+
+**1. PRIMARY — Overview page-level horizontal overflow, ELIMINATED (not just masked).**
+Files changed: `client/src/pages/DashboardPage.jsx`, `client/src/index.css`.
+- `DashboardPage.jsx` (Breakdown heading row, ~line 582): the inner `<div style={{ display:
+  'flex', alignItems: 'flex-start', gap: 40 }}>` wrapping `MonthSwitcher` + `BreakdownControls`
+  now reads `<div className="breakdown-heading-controls">` — inline style removed entirely (an
+  inline style would have beaten any external/media-query CSS rule regardless of specificity, so
+  it had to move to a real class before it could be made responsive at all).
+- `index.css` — added a new BASE rule `.breakdown-heading-controls { display:flex; align-items:
+  flex-start; gap:40px; }` (directly above `.cat-bar-row-value`, ~line 649) that reproduces the
+  removed inline style byte-for-byte — desktop (>768px) rendering is unchanged.
+- Inside the existing `@media (max-width: 768px)` block (end of file, ~line 2144+): added
+  `.breakdown-heading-controls { flex-wrap: wrap; gap: 12px; width: 100%; }`. This is the actual
+  fix — the previous agent's `body { overflow-x: hidden }` only hid the symptom; this removes the
+  rigid ~370px nowrap block that was forcing the whole page wider than 375px, letting
+  MonthSwitcher and BreakdownControls wrap/stack within the viewport. `.card-row` (the outer
+  parent row) already had `flex-wrap: wrap`, so once this inner block could also wrap there was
+  nothing left in the row forcing >100vw.
+- Left the previous agent's `body { overflow-x: hidden }` in place as belt-and-suspenders per the
+  task's instruction — did not rely on it; the layout no longer overflows without it (verified by
+  reasoning through the box model: no fixed-width nowrap descendant remains in that row at
+  ≤768px).
+
+**2. Overview Budget card comparison-row collision — FIXED.**
+File: `client/src/index.css`, inside the same `@media (max-width: 768px)` block. The rows live in
+`DashboardPage.jsx`'s `chartRows.map(...)` (~line 479-502), markup class `.cat-bar-row-head`
+(flex, `justify-content: space-between`, `nowrap` on desktop) containing `.cat-bar-row-label`
+(category name) and `.cat-bar-row-value` (e.g. "$22.00 of $0.00 (100%) — over"). At 375px the
+long value string doesn't fit the remaining row width next to the name, causing the collision the
+Director observed. Added:
+```
+.cat-bar-row-head { flex-wrap: wrap; row-gap: 2px; }
+.cat-bar-row-value { flex: 1 1 100%; text-align: right; }
+```
+so the detail text now wraps cleanly to its own full-width line below the category name
+(right-aligned, so it still visually reads as "detail for this row") instead of overlapping it.
+No font-size was reduced (still 13px/13.5px, both ≥ the 13px floor). This same class is also used
+by "Top spending" rows on Overview, but those values are short ("$xx.xx") and never wrap in
+practice — reproduced no change there since `flex-wrap: wrap` on a row whose content already fits
+one line is a no-op.
+
+**Constraints honored:** no desktop (>768px) rendering changed — verified the only base-rule
+change is the `.breakdown-heading-controls` class replacing an inline style with byte-identical
+CSS; all other changes are scoped inside the existing `@media (max-width: 768px)` block.
+Transactions/Budget pages untouched. `.table-card`'s own `overflow-x: auto` untouched. Tap targets
+unaffected (no interactive element resized).
+
+**Build:** `cd C:/claudecode/client && npm run build` — clean, no errors/warnings
+(`dist/assets/index-*.css` 27.08 kB, `dist/assets/index-*.js` 296.59 kB, built in 710ms).
+**Lint:** exactly the 2 known pre-existing `react-hooks/set-state-in-effect` errors
+(`DashboardPage.jsx:127`, `TransactionsPage.jsx:41`), 0 new errors/warnings.
+
+Files changed: `client/src/pages/DashboardPage.jsx`, `client/src/index.css`. Not committed (per
+task instruction — Director handles commit after visual verification).
+
+**VISUAL-VERIFY-REQUEST: Overview @375px + desktop @1280px** — no live browser/screenshot tool
+available to this role (per skill). Requesting the Director re-screenshot:
+1. Overview @375px: confirm no horizontal scrollbar/dead gutter, `document.documentElement.
+   scrollWidth` ≈ viewport width (375), Breakdown heading row's MonthSwitcher + BreakdownControls
+   now wrap/stack cleanly within the viewport (test an occupied month, an empty month, an
+   after-latest month, and a before-history month — same states used for the earlier
+   MonthSwitcher batches, to also confirm the activity-info line still doesn't overflow).
+2. Overview @375px, Budget card: confirm comparison rows like "Transport — $22.00 of $0.00
+   (100%) — over" no longer overlap; name and detail are legible, detail wraps below the name.
+3. Overview @1280px (desktop): confirm the Breakdown heading row and Budget card look byte-
+   identical to before this change (MonthSwitcher/BreakdownControls still inline on one row with
+   the original 40px gap; Budget comparison rows still single-line, unchanged).
+4. All three themes if convenient, though this is a structural flex fix, not theme-dependent.
+
+Confidence: 100% on the build/lint results (directly executed) and on the desktop-preservation
+reasoning (the only base-rule change reproduces the removed inline style exactly, verified by
+diff). ~90% on the exact pixel wrap behavior at 375px without a live render — Director's visual
+pass is the closing verification step per the task's own protocol.
+
+---
+
 # FOLLOW-UP BATCH 9 (user feedback, 2026-07-03) — hard day dividers on Transactions
 
 FRONTEND, styling only. User: add a visible hard horizontal border between each day group
@@ -1993,3 +2074,116 @@ sizing), but the `.month-activity-info` wrapping/max-width tradeoff involved rea
 render; flagged above for the director's live pass.
 
 Files changed: `client/src/index.css` only. No commit made (batch not yet marked complete).
+
+---
+## [Director] Mobile layout fix (follow-up to 7116c19) — 2026-07-03
+Diagnosis (Playwright @375px, backend seeded via local libsql file):
+- Overview: PRIMARY BUG — horizontal page overflow (~160px). Breakdown heading row `client/src/pages/DashboardPage.jsx:580-591`: inner `<div style={{display:'flex', gap:40}}>` (MonthSwitcher + BreakdownControls) is nowrap/fixed-gap → ~370px block can't fit 375px viewport, pushes whole page wide, controls float off right edge in a dead gutter. Prev agent's `body{overflow-x:hidden}` (index.css ~L1950) only masks it.
+- Transactions @375px: OK — table scrolls horizontally inside `.table-card`, header buttons stack. Leave as-is.
+- Budget @375px: OK — full-width switcher, stacked rows, large inputs. Leave as-is.
+- Secondary: Overview budget-card list rows ("Transport $22.00 of $0.00 (100%) — over") crowd/collide at 375px.
+Dispatched: senior-frontend-dev.
+
+## [Director] Visual verification PASSED + shipped — 2026-07-04
+Re-screenshotted @375px and @1280px after senior-frontend-dev's fix:
+- Overview @375px: dead right gutter GONE; Breakdown controls stack in-viewport; budget-card rows wrap cleanly (no collision). Real regression fixed.
+- Overview @1280px: unchanged (Breakdown row single-line, gap:40 preserved via new .breakdown-heading-controls class; budget rows single-line; STYLE nav label present).
+- Transactions/Budget: untouched, were already correct.
+- Residual: full-page screenshot shows ~405px width from hover-only daily-bar tooltips on late-month days (pos:absolute, invisible on touch, clipped by body{overflow-x:hidden}). Pre-existing, not the regression, no user-facing scroll. Left as-is to avoid risking desktop hover behavior.
+Committed+pushed: 098584b.
+
+## [Director] Overview mobile: donut distortion + residual overflow — 2026-07-04
+Fresh Playwright diagnosis @375px (bounding boxes, backend seeded):
+- DONUT DISTORTION (primary, user report #2): `.donut-wrap`/`.donut-center` = 120x120 on mobile, but `DonutChart.jsx` SVG is hardcoded `width="150" height="150"` (viewBox 0 0 120 120 already present). SVG overflows container 30px right, overlaps legend text by ~6px, and center value sits ~15px off the ring center. Round in coords, mis-sized on screen.
+- Fix: SVG `width="100%" height="100%"` (keep viewBox). Fills wrap at any size (150 desktop / 120 mobile), center overlay realigns. One-line change, no desktop regression (150px wrap unchanged).
+- Normal-flow content is NOT squashed (main x=16..359, symmetric gutters, 343/375 used). Squash-left on real phones traces to daily-bar `.bar-chart-tooltip` (position:absolute) overflowing to x=-80..413, only masked by body{overflow-x:hidden}. Address without breaking desktop hover tooltips or the transactions `.table-card` horizontal scroll.
+Dispatched: senior-frontend-dev.
+
+## [Director] + Manage Categories modal off-screen (new user report) — 2026-07-04
+Confirmed @375px (Playwright boxes): CategoryManagerModal panel box=20,-27,327,866 in an 812px-tall
+viewport — panel is 866px tall (> viewport), vertically centered, so top clips ABOVE y=0. Close (X)
+button box=298,-10,32,40 sits at y=-10 → off-screen, unreachable. User can't exit.
+Root cause: `.modal-overlay` (index.css:1229 — position:fixed;inset:0;flex center;padding:20px) has NO
+overflow-y; `.modal-panel` (1241) has NO max-height. Any modal taller than the viewport overflows off
+the top. Fix: overlay `overflow-y:auto` (+ flex-start on mobile so the header/X is always reachable);
+panel `max-height:calc(100dvh - 40px); overflow-y:auto` (consider sticky `.modal-head` so X stays
+pinned). Applies to ALL modals (Add transaction, Export, Category manager) — one CSS fix covers them.
+Folded into the same senior-frontend-dev dispatch (three mobile fixes total).
+
+## [senior-frontend-dev] Mobile fixes 1-3 — DONE, not committed
+
+Implemented all three director-diagnosed fixes exactly as specified (no re-diagnosis performed).
+
+**FIX 1 — Donut distortion.** `client/src/components/breakdown/DonutChart.jsx` line 9:
+`<svg width="150" height="150" ...>` → `<svg width="100%" height="100%" ...>`, `viewBox="0 0 120 120"`
+unchanged. Confirmed (grep) there is no global `svg{...}` sizing rule in `index.css` that would
+override this. Desktop `.donut-wrap` stays 150x150 so desktop rendering is unaffected; mobile's
+existing 120x120 `.donut-wrap` override (index.css ~2149, untouched) now correctly sizes the SVG too,
+which also realigns the absolutely-positioned `.donut-center` overlay (`inset:0` on the same box).
+
+**FIX 2 — Modal off-screen / close button unreachable.** `client/src/index.css`:
+- `.modal-overlay` (base rule, ~1229): added `overflow-y: auto;`.
+- `.modal-panel` (base rule, ~1241): added `max-height: calc(100dvh - 40px); overflow-y: auto;`.
+- `.modal-head` (base rule, ~1251): added `position: sticky; top: 0; background: var(--surface);
+  z-index: 1;` so the close (×) button stays visible/reachable while the panel body scrolls beneath
+  it — background matches `.modal-panel`'s so there's no visible seam.
+- Inside the existing `@media (max-width: 768px)` block: added `.modal-overlay { align-items:
+  flex-start; }` (anchors tall modals to the top of the viewport on mobile instead of vertically
+  centering them off-screen; desktop keeps `align-items: center` from the base rule) and restated
+  `max-height: calc(100dvh - 40px)` on the existing mobile `.modal-panel` padding-override rule for
+  clarity alongside the other mobile modal tweaks (functionally redundant with the base rule but kept
+  local/visible in the same block per the file's existing convention of grouping related mobile
+  overrides together).
+- This applies uniformly to every modal (Add transaction, Export, Category manager, Clear history,
+  etc.) since they all share `.modal-overlay`/`.modal-panel`/`.modal-head` — one fix, no per-modal
+  changes needed. Desktop modals (540/620px wide, shorter than the viewport) never reach the new
+  `max-height`, so their rendering is unaffected — verified by reasoning through the box model (no
+  existing modal's content approaches ~calc(100dvh-40px) at typical desktop viewport heights).
+
+**FIX 3 — Residual horizontal overflow from bar-chart tooltips.** `client/src/index.css`, inside the
+existing `@media (max-width: 768px)` block only: added `.bar-chart { overflow-x: clip; }`.
+Judgment call: went with the task's preferred option (`overflow-x: clip` on the `.bar-chart` container,
+not touching `.bar-chart-tooltip` itself or `.table-card`). `overflow-x`/`overflow-y` are independent
+axes per the CSS Overflow spec — `clip` on one axis with the other left at its default (`visible`) is
+the documented canonical use case (MDN's own example is exactly "clip horizontal spill, keep vertical
+overflow visible"), so setting only `overflow-x: clip` leaves `overflow-y` at its unset/visible default
+without needing to also declare `overflow-y: visible` explicitly. `.bar-chart-tooltip` renders via
+`bottom: calc(100% + 8px)` (grows upward from its bar), so it's a vertical-overflow case, not
+horizontal — clipping only x removes the page-width contribution from tooltips centered near the left
+or right edge of the chart while leaving them fully visible above their bar. `.bar-chart` already has
+`position: relative` (pre-existing), so the clip applies relative to that established containing
+block with no other change needed. Desktop hover tooltips are entirely untouched (rule is mobile-only,
+inside the existing media block); `.table-card`'s own horizontal scroll is a different container,
+not touched at all. `body { overflow-x: hidden }` left in place as belt-and-suspenders, per the task.
+
+**Build/lint:**
+- `cd client && npm run build` — clean, no errors/warnings (`dist/assets/index-*.css` 27.31 kB,
+  `dist/assets/index-*.js` 296.59 kB, built in 1.23s).
+- `cd client && npm run lint` — exactly the 2 known pre-existing `react-hooks/set-state-in-effect`
+  errors (`DashboardPage.jsx:127`, `TransactionsPage.jsx:41`), 0 new errors/warnings.
+
+Files changed: `client/src/components/breakdown/DonutChart.jsx`, `client/src/index.css`. No JSX
+markup changes, no new classes needed beyond what already existed in the mobile media block. Did not
+start/stop the dev server (director's Vite instance on :5174 left untouched). Not committed, per task.
+
+**Visual-verification request** (no live browser/screenshot tool as a subagent, per skill): could
+someone re-run the Playwright bounding-box measurements that diagnosed these three bugs, confirming:
+1. Donut @375px: SVG box now matches `.donut-wrap`'s 120x120 (not 150x150), no overlap with legend
+   text, `.donut-center` value centered on the ring. Donut @1280px unchanged (150x150).
+2. CategoryManagerModal @375px: panel top no longer clips above y=0, close (×) button is on-screen
+   and clickable, panel scrolls its own content if taller than the viewport, header stays pinned/
+   visible while scrolling. Spot-check Add-transaction and Export modals too (shorter content —
+   confirm no visual change/clipping there). Desktop (1280px): all modals render byte-identical to
+   before (centered, no max-height reached).
+3. @375px: `document.documentElement.scrollWidth` ≈ 375 (no residual overflow from bar-chart
+   tooltips) even when hovering/inspecting a bar near the chart's left/right edge. Desktop: hover a
+   bar near either edge of the daily-spending chart and confirm the tooltip still renders fully
+   visible (not clipped) — this is the one fix where an over-aggressive implementation could have
+   broken desktop, so it's the most important part of this request to confirm.
+
+Confidence: 100% on FIX 1 (single hardcoded-value change, mechanism is exactly as diagnosed) and on
+build/lint results (directly executed). ~90% on FIX 2 (mechanism is standard CSS, but I can't confirm
+pixel-perfect close-button reachability without a live render). ~85% on FIX 3 specifically the
+`overflow-x`/`overflow-y` independence claim in the actual browsers in use — this is documented,
+spec-correct behavior in all modern evergreen browsers, but it's the one part of this task with real
+judgment involved, hence flagging it as the item most worth the director's direct verification.

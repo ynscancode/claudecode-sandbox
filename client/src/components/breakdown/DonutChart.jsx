@@ -6,7 +6,7 @@ import { RADIUS } from '../../utils/donutMath.js'
 export default function DonutChart({ segments, centerLabel, centerValue }) {
   return (
     <div className="donut-wrap">
-      <svg width="150" height="150" viewBox="0 0 120 120">
+      <svg width="100%" height="100%" viewBox="0 0 120 120">
         <circle cx="60" cy="60" r={RADIUS} fill="none" stroke="var(--surface-2)" strokeWidth="13" />
         <g transform="rotate(-90 60 60)">
           {segments.map((s, i) => (
