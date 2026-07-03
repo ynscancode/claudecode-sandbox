@@ -184,6 +184,19 @@ const MONTH_ABBREV = [
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
 
+const MONTH_FULL = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+// "YYYY-MM" -> "Month YYYY" (e.g. "2026-07" -> "July 2026"), used for the
+// month-divider band rows in the multi-month (all-time) export.
+function monthLabelFull(monthKey) {
+  const [year, month] = monthKey.split('-');
+  const monthIdx = Number(month) - 1;
+  return `${MONTH_FULL[monthIdx] ?? month} ${year}`;
+}
+
 const MIN_COL_WIDTH = 8;
 const COL_WIDTH_PADDING = 2;
 
@@ -250,12 +263,43 @@ export function buildTransactionsWorkbook({ from, to } = {}) {
     const title = isAllTime
       ? `${accountName} — All Transactions`
       : `${accountName} — ${monthLabelSuffix}`;
-    const dataRows = rows
-      .filter((row) => row.account_id === accountId)
-      .map(rowToAoa);
+    const accountRows = rows.filter((row) => row.account_id === accountId);
+    const dataRows = accountRows.map(rowToAoa);
 
-    const aoa = [[title], header, ...dataRows];
+    // Month-divider bands: SheetJS Community Edition cannot persist cell
+    // styles (borders/fills) on write (confirmed empirically — see
+    // FOLLOW-UP BATCH 5 team-board note), so a full-width, merged label row
+    // between month groups is the closest CE-compatible substitute for a
+    // literal ruled border. Only added when this sheet's own rows actually
+    // span more than one distinct month (i.e. an all-time/multi-month
+    // export) — a single-month export stays exactly as before, no bands.
+    const distinctMonths = new Set(accountRows.map((row) => row.date.slice(0, 7)));
+    const isMultiMonth = distinctMonths.size > 1;
+
+    const aoa = [[title], header];
+    const merges = [];
+
+    if (isMultiMonth) {
+      let currentMonthKey = null;
+      for (const row of accountRows) {
+        const monthKey = row.date.slice(0, 7);
+        if (monthKey !== currentMonthKey) {
+          currentMonthKey = monthKey;
+          const bandRowIdx = aoa.length; // 0-based row index in the eventual sheet
+          aoa.push([monthLabelFull(monthKey)]);
+          merges.push({ s: { r: bandRowIdx, c: 0 }, e: { r: bandRowIdx, c: header.length - 1 } });
+        }
+        aoa.push(rowToAoa(row));
+      }
+    } else {
+      aoa.push(...dataRows);
+    }
+
     const sheet = XLSX.utils.aoa_to_sheet(aoa);
+    if (merges.length) sheet['!merges'] = merges;
+    // Width calc uses only the header + raw data rows (dataRows), never the
+    // title row or the merged band label rows, so a band like "July 2026"
+    // (merged across all 7 columns) can't blow out column A's width.
     sheet['!cols'] = computeColWidths(header, dataRows);
     return sheet;
   }
