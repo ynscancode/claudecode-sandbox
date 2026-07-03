@@ -579,7 +579,7 @@ export default function DashboardPage() {
           BreakdownControls. */}
       <div className="card-row" style={{ marginTop: 30, marginBottom: 12, alignItems: 'flex-start' }}>
         <h2 style={{ margin: 0, marginTop: 13, font: '600 16px/1 var(--font-ui)', letterSpacing: '-.01em' }}>Breakdown</h2>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 40 }}>
+        <div className="breakdown-heading-controls">
           <MonthSwitcher
             month={selectedMonth}
             onChange={setSelectedMonth}

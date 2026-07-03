@@ -647,6 +647,19 @@ select {
   color: var(--muted);
 }
 
+/* Breakdown header row (Overview page): MonthSwitcher + BreakdownControls.
+   Was an inline style (`display:flex; alignItems:'flex-start'; gap:40`);
+   moved to a real class so a mobile media-query rule can override it —
+   inline styles win over any external stylesheet rule regardless of
+   specificity/media query, so this had to move before it could be made
+   responsive at all. Base rule below reproduces the old inline style
+   exactly; desktop (>768px) look is unchanged. */
+.breakdown-heading-controls {
+  display: flex;
+  align-items: flex-start;
+  gap: 40px;
+}
+
 .cat-bar-track {
   height: 7px;
   border-radius: 4px;
@@ -2140,5 +2153,41 @@ td {
 
   .donut-legend {
     min-width: 160px;
+  }
+
+  /* ---- Breakdown heading row (Overview) — PRIMARY mobile overflow fix ----
+     Desktop's `.breakdown-heading-controls` is a rigid `nowrap` flex row
+     (MonthSwitcher + BreakdownControls, gap:40) that, together, is wider
+     than a 375px viewport and cannot shrink — that rigid width was what
+     forced the entire page wider than the viewport (horizontal scroll +
+     dead gutter on the right). Letting it wrap and shrink the gap, plus
+     making it a full-width block so its children can stack, removes the
+     oversized rigid child that was pushing the page wide in the first
+     place. `.card-row` (its parent) already `flex-wrap: wrap`s, so once
+     this inner block can also wrap/shrink, nothing left in this row forces
+     >100vw. */
+  .breakdown-heading-controls {
+    flex-wrap: wrap;
+    gap: 12px;
+    width: 100%;
+  }
+
+  /* ---- Budget comparison rows (Overview "Budget" card) ----
+     `.cat-bar-row-head` is `nowrap` on desktop (category name left, a long
+     "$22.00 of $0.00 (100%) — over" detail right, space-between). At 375px
+     that detail string is often wider than the remaining row width once
+     the category name/swatch take their share, so the two collide/overlap
+     instead of both rendering fully. Allow the row to wrap so the detail
+     moves cleanly to its own line below the name instead of overlapping
+     it, and right-align that wrapped line so it still reads as "detail
+     for this row" rather than a second left-aligned line. */
+  .cat-bar-row-head {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+
+  .cat-bar-row-value {
+    flex: 1 1 100%;
+    text-align: right;
   }
 }
