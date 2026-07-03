@@ -6,12 +6,14 @@ export function computeDayTotals(txns) {
   const endOfDayBalance = {}
 
   for (const txn of txns) {
-    combined[txn.direction] += txn.amount
-
     if (!perAccount[txn.account_id]) {
       perAccount[txn.account_id] = { accountId: txn.account_id, in: 0, out: 0 }
     }
-    perAccount[txn.account_id][txn.direction] += txn.amount
+
+    if (!txn.is_transfer) {
+      combined[txn.direction] += txn.amount
+      perAccount[txn.account_id][txn.direction] += txn.amount
+    }
 
     // txns are in chronological order, so the last one seen per account
     // holds that account's end-of-day running balance.
