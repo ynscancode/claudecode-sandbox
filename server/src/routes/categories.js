@@ -14,27 +14,27 @@ function handleError(res, err) {
   return res.status(500).json({ error: 'Internal server error' });
 }
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const categories = listCategories(req.query.account_id);
+    const categories = await listCategories(req.query.account_id);
     res.json(categories);
   } catch (err) {
     handleError(res, err);
   }
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
-    const result = createCategory(req.body);
+    const result = await createCategory(req.body);
     res.status(201).json(result);
   } catch (err) {
     handleError(res, err);
   }
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
-    deleteCategory(req.params.id);
+    await deleteCategory(req.params.id);
     res.status(204).send();
   } catch (err) {
     handleError(res, err);

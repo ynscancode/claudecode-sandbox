@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import MonthSwitcher from '../layout/MonthSwitcher.jsx'
 import { monthRangeFor, monthLabel } from '../../utils/dateUtils.js'
-import { apiUrl } from '../../api/client.js'
+import { apiUrl, API_TOKEN } from '../../api/client.js'
 
 // Mirrors the portal/overlay/panel conventions of TransactionModal.jsx and
 // ClearHistoryModal.jsx (.modal-overlay / .modal-panel / .modal-head /
@@ -50,6 +50,7 @@ export default function ExportModal({ month, activity, onClose }) {
       params.set('to', to)
     }
     const filename = scope === 'all' ? 'transactions-all.xlsx' : `transactions-${pickedMonth}.xlsx`
+    if (API_TOKEN) params.set('token', API_TOKEN)
     const link = document.createElement('a')
     link.href = `${apiUrl('/transactions/export')}?${params.toString()}`
     link.download = filename

@@ -1,4 +1,4 @@
-import db from '../db.js';
+import client from '../db.js';
 import { PALETTE } from '../constants/palette.js';
 import { ACCOUNTS } from '../constants/categories.js';
 
@@ -129,26 +129,38 @@ function assignColor(name, usedColors) {
   return hslToHex(bestHue, 48, 58);
 }
 
-export function listCategories(accountId) {
+export async function listCategories(accountId) {
   assertValidAccountId(accountId);
-  const rows = db
-    .prepare('SELECT id, name, list, color FROM categories WHERE is_system = 0 AND account_id = ? ORDER BY id')
-    .all(Number(accountId));
+  const rows = (
+    await client.execute({
+      sql: 'SELECT id, name, list, color FROM categories WHERE is_system = 0 AND account_id = :accountId ORDER BY id',
+      args: { accountId: Number(accountId) },
+    })
+  ).rows;
   return {
     outgoing: rows.filter((r) => r.list === 'outgoing'),
     incoming: rows.filter((r) => r.list === 'incoming'),
   };
 }
 
-export function createCategory({ name, list, account_id }) {
+// `exec` (optional): a libsql interactive-transaction handle, defaulting to
+// the module `client`. Threaded through so importService.commitImport can
+// run this inside its own single transaction alongside
+// createTransaction/createTransfer — a plain client.execute runs on a
+// different connection than an already-open transaction and would silently
+// lose atomicity across the batch (see team board Batch 8 contract).
+export async function createCategory({ name, list, account_id }, exec = client) {
   const trimmedName = assertValidName(name);
   assertValidList(list);
   assertValidAccountId(account_id);
   const accountId = Number(account_id);
 
-  const duplicate = db
-    .prepare('SELECT id FROM categories WHERE lower(name) = lower(@name) AND list = @list AND account_id = @accountId')
-    .get({ name: trimmedName, list, accountId });
+  const duplicate = (
+    await exec.execute({
+      sql: 'SELECT id FROM categories WHERE lower(name) = lower(:name) AND list = :list AND account_id = :accountId',
+      args: { name: trimmedName, list, accountId },
+    })
+  ).rows[0];
   if (duplicate) {
     throw new ValidationError(`category "${trimmedName}" already exists in ${list}`);
   }
@@ -156,21 +168,21 @@ export function createCategory({ name, list, account_id }) {
   // Each account independently consumes the full palette, rather than
   // sharing one pool, since Spending and Savings categories are now
   // entirely separate lists.
-  const accountColors = db
-    .prepare('SELECT color FROM categories WHERE account_id = ?')
-    .all(accountId)
-    .map((r) => r.color);
+  const accountColors = (
+    await exec.execute({ sql: 'SELECT color FROM categories WHERE account_id = :accountId', args: { accountId } })
+  ).rows.map((r) => r.color);
   const color = assignColor(trimmedName, accountColors);
 
-  const result = db
-    .prepare('INSERT INTO categories (name, list, is_system, color, account_id) VALUES (@name, @list, 0, @color, @accountId)')
-    .run({ name: trimmedName, list, color, accountId });
+  const result = await exec.execute({
+    sql: 'INSERT INTO categories (name, list, is_system, color, account_id) VALUES (:name, :list, 0, :color, :accountId)',
+    args: { name: trimmedName, list, color, accountId },
+  });
 
-  return { id: result.lastInsertRowid, name: trimmedName, list, color, account_id: accountId };
+  return { id: Number(result.lastInsertRowid), name: trimmedName, list, color, account_id: accountId };
 }
 
-export function deleteCategory(id) {
-  const category = db.prepare('SELECT * FROM categories WHERE id = ?').get(id);
+export async function deleteCategory(id) {
+  const category = (await client.execute({ sql: 'SELECT * FROM categories WHERE id = :id', args: { id } })).rows[0];
   if (!category) {
     throw new NotFoundError('category not found');
   }
@@ -178,17 +190,25 @@ export function deleteCategory(id) {
     throw new ValidationError('system categories cannot be deleted');
   }
 
-  const txnCount = db
-    .prepare('SELECT COUNT(*) AS count FROM transactions WHERE category = ? AND account_id = ?')
-    .get(category.name, category.account_id).count;
+  const txnCount = (
+    await client.execute({
+      sql: 'SELECT COUNT(*) AS count FROM transactions WHERE category = :name AND account_id = :accountId',
+      args: { name: category.name, accountId: category.account_id },
+    })
+  ).rows[0].count;
   // Budgets are Spending-only (see budgetService), so a Savings category of
   // the same name can never actually appear in budgets — skip the check
   // entirely to avoid a false-positive block from an unrelated Spending budget.
   const budgetCount = category.account_id === ACCOUNTS.SPENDING
-    ? db.prepare('SELECT COUNT(*) AS count FROM budgets WHERE category = ?').get(category.name).count
+    ? (
+      await client.execute({
+        sql: 'SELECT COUNT(*) AS count FROM budgets WHERE category = :name',
+        args: { name: category.name },
+      })
+    ).rows[0].count
     : 0;
 
-  if (txnCount + budgetCount > 0) {
+  if (Number(txnCount) + Number(budgetCount) > 0) {
     const parts = [];
     if (txnCount > 0) {
       parts.push(`${txnCount} transaction${txnCount === 1 ? '' : 's'}`);
@@ -196,34 +216,40 @@ export function deleteCategory(id) {
     if (budgetCount > 0) {
       parts.push(`${budgetCount} budget entr${budgetCount === 1 ? 'y' : 'ies'}`);
     }
-    const totalItems = txnCount + budgetCount;
+    const totalItems = Number(txnCount) + Number(budgetCount);
     const verb = totalItems === 1 ? 'uses' : 'use';
     throw new ValidationError(
       `Cannot delete '${category.name}': ${parts.join(' and ')} still ${verb} this category. Reassign or delete them first.`
     );
   }
 
-  db.prepare('DELETE FROM categories WHERE id = ?').run(id);
+  await client.execute({ sql: 'DELETE FROM categories WHERE id = :id', args: { id } });
 }
 
 // Outgoing category names a normal transaction may use for the given
 // account (excludes is_system, e.g. transfer-out).
-export function getOutgoingNames(accountId) {
-  return db
-    .prepare("SELECT name FROM categories WHERE list = 'outgoing' AND is_system = 0 AND account_id = ? ORDER BY id")
-    .all(Number(accountId))
-    .map((r) => r.name);
+export async function getOutgoingNames(accountId, exec = client) {
+  const rows = (
+    await exec.execute({
+      sql: "SELECT name FROM categories WHERE list = 'outgoing' AND is_system = 0 AND account_id = :accountId ORDER BY id",
+      args: { accountId: Number(accountId) },
+    })
+  ).rows;
+  return rows.map((r) => r.name);
 }
 
 // Incoming category names a normal transaction may use for the given
 // account (excludes is_system, e.g. transfer-in). Symmetric counterpart to
 // getOutgoingNames() — used by importService.js's category skip-if-exists
 // guard for incoming-list category drafts.
-export function getIncomingNames(accountId) {
-  return db
-    .prepare("SELECT name FROM categories WHERE list = 'incoming' AND is_system = 0 AND account_id = ? ORDER BY id")
-    .all(Number(accountId))
-    .map((r) => r.name);
+export async function getIncomingNames(accountId, exec = client) {
+  const rows = (
+    await exec.execute({
+      sql: "SELECT name FROM categories WHERE list = 'incoming' AND is_system = 0 AND account_id = :accountId ORDER BY id",
+      args: { accountId: Number(accountId) },
+    })
+  ).rows;
+  return rows.map((r) => r.name);
 }
 
 // Outgoing categories a user can set a monthly budget for, on the given
@@ -233,7 +259,7 @@ export function getIncomingNames(accountId) {
 // semantically-named entry point independent of how "budgetable" is defined
 // if that ever diverges from "all non-system outgoing categories". Always
 // called with ACCOUNTS.SPENDING by budgetService — budgeting is Spending-only.
-export function getBudgetableNames(accountId) {
+export async function getBudgetableNames(accountId) {
   return getOutgoingNames(accountId);
 }
 
@@ -242,12 +268,15 @@ export function getBudgetableNames(accountId) {
 // matching the transaction's direction ('out' -> outgoing, 'in' -> incoming),
 // scoped to the transaction's own account (Spending/Savings categories are
 // independent lists).
-export function isValidNormalCategory(category, direction, accountId) {
+export async function isValidNormalCategory(category, direction, accountId, exec = client) {
   if (!category) return false;
   const list = direction === 'out' ? 'outgoing' : 'incoming';
-  const row = db
-    .prepare('SELECT id FROM categories WHERE name = @name AND list = @list AND is_system = 0 AND account_id = @accountId')
-    .get({ name: category, list, accountId: Number(accountId) });
+  const row = (
+    await exec.execute({
+      sql: 'SELECT id FROM categories WHERE name = :name AND list = :list AND is_system = 0 AND account_id = :accountId',
+      args: { name: category, list, accountId: Number(accountId) },
+    })
+  ).rows[0];
   return Boolean(row);
 }
 

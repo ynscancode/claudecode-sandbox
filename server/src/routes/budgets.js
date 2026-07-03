@@ -14,19 +14,19 @@ function handleError(res, err) {
   return res.status(500).json({ error: 'Internal server error' });
 }
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { month } = req.query;
-    const budgets = getBudgetsForMonth(month);
+    const budgets = await getBudgetsForMonth(month);
     res.json({ month, budgets });
   } catch (err) {
     handleError(res, err);
   }
 });
 
-router.put('/', (req, res) => {
+router.put('/', async (req, res) => {
   try {
-    const result = setBudget(req.body);
+    const result = await setBudget(req.body);
     res.json(result);
   } catch (err) {
     handleError(res, err);

@@ -5,6 +5,7 @@
 // origin (e.g. https://your-app.fly.dev) at build time, since a static
 // SPA host (Vercel/Netlify) has no server-side proxy to forward /api to.
 export const API_BASE = import.meta.env.VITE_API_URL || '';
+export const API_TOKEN = import.meta.env.VITE_API_TOKEN || '';
 
 // Exported so any caller that needs to build a raw request URL outside this
 // module's request()/requestFormData() wrappers (currently: ExportModal.jsx's
@@ -14,10 +15,14 @@ export function apiUrl(path) {
   return `${API_BASE}/api${path}`;
 }
 
+function authHeader() {
+  return API_TOKEN ? { Authorization: `Bearer ${API_TOKEN}` } : {};
+}
+
 async function request(method, path, body) {
   const res = await fetch(apiUrl(path), {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeader() },
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
@@ -33,7 +38,7 @@ async function request(method, path, body) {
 // so this can't share request()'s JSON-only contract without overloading it
 // with conditionals.
 async function requestFormData(method, path, formData) {
-  const res = await fetch(apiUrl(path), { method, body: formData });
+  const res = await fetch(apiUrl(path), { method, body: formData, headers: authHeader() });
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
   if (!res.ok) {

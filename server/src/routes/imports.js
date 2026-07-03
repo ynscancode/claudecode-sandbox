@@ -50,13 +50,13 @@ router.post('/parse', (req, res) => {
 // outgoing/incoming category across both accounts. The LLM service validates
 // against exactly this list; it never sees account-scoping, only name+list,
 // matching the categoryMapping contract documented on the team board.
-function buildKnownCategories() {
+async function buildKnownCategories() {
   const known = [];
   for (const accountId of Object.values(ACCOUNTS)) {
-    for (const name of getOutgoingNames(accountId)) {
+    for (const name of await getOutgoingNames(accountId)) {
       known.push({ name, list: 'outgoing' });
     }
-    for (const name of getIncomingNames(accountId)) {
+    for (const name of await getIncomingNames(accountId)) {
       known.push({ name, list: 'incoming' });
     }
   }
@@ -94,7 +94,7 @@ router.post('/suggest', async (req, res) => {
       return res.status(400).json({ error: 'headers (non-empty array) and sampleRows (array) are required' });
     }
 
-    const knownCategories = buildKnownCategories();
+    const knownCategories = await buildKnownCategories();
     const hash = deriveFileHash({ fileHash, headers, sampleRows });
 
     const suggestion = await suggestMapping({
@@ -114,9 +114,9 @@ router.post('/suggest', async (req, res) => {
   }
 });
 
-router.post('/commit', (req, res) => {
+router.post('/commit', async (req, res) => {
   try {
-    const result = commitImport(req.body);
+    const result = await commitImport(req.body);
     res.status(201).json(result);
   } catch (err) {
     handleError(res, err);

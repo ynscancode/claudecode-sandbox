@@ -1,4 +1,4 @@
-import db from '../db.js';
+import client from '../db.js';
 import { getBudgetableNames } from './categoryService.js';
 import { ACCOUNTS } from '../constants/categories.js';
 
@@ -21,8 +21,8 @@ function assertValidMonth(month) {
 // Budgeting is Spending-only by design — a Savings category is never a
 // valid budget target even if a same-named category exists on Spending's
 // independent list.
-function assertValidCategory(category) {
-  if (!category || !getBudgetableNames(ACCOUNTS.SPENDING).includes(category)) {
+async function assertValidCategory(category) {
+  if (!category || !(await getBudgetableNames(ACCOUNTS.SPENDING)).includes(category)) {
     throw new ValidationError(`category "${category}" is not budgetable`);
   }
 }
@@ -33,30 +33,33 @@ function assertValidAmount(amount) {
   }
 }
 
-export function getBudgetsForMonth(month) {
+export async function getBudgetsForMonth(month) {
   assertValidMonth(month);
 
-  const rows = db
-    .prepare('SELECT category, amount FROM budgets WHERE month = @month')
-    .all({ month });
+  const rows = (
+    await client.execute({ sql: 'SELECT category, amount FROM budgets WHERE month = :month', args: { month } })
+  ).rows;
   const byCategory = new Map(rows.map((row) => [row.category, row.amount]));
 
-  return getBudgetableNames(ACCOUNTS.SPENDING).map((category) => ({
+  return (await getBudgetableNames(ACCOUNTS.SPENDING)).map((category) => ({
     category,
     amount: byCategory.get(category) ?? 0,
   }));
 }
 
-export function setBudget({ month, category, amount }) {
+export async function setBudget({ month, category, amount }) {
   assertValidMonth(month);
-  assertValidCategory(category);
+  await assertValidCategory(category);
   assertValidAmount(amount);
 
-  db.prepare(`
-    INSERT INTO budgets (month, category, amount)
-    VALUES (@month, @category, @amount)
-    ON CONFLICT(month, category) DO UPDATE SET amount = excluded.amount
-  `).run({ month, category, amount });
+  await client.execute({
+    sql: `
+      INSERT INTO budgets (month, category, amount)
+      VALUES (:month, :category, :amount)
+      ON CONFLICT(month, category) DO UPDATE SET amount = excluded.amount
+    `,
+    args: { month, category, amount },
+  });
 
   return { month, category, amount };
 }

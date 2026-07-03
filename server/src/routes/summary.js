@@ -4,24 +4,39 @@ import { isValidDateStr, isValidMonthStr } from '../utils/dateUtils.js';
 
 const router = Router();
 
-router.get('/daily', (req, res) => {
-  const { date } = req.query;
-  if (!date || !isValidDateStr(date)) {
-    return res.status(400).json({ error: 'date query param required in YYYY-MM-DD format' });
+router.get('/daily', async (req, res) => {
+  try {
+    const { date } = req.query;
+    if (!date || !isValidDateStr(date)) {
+      return res.status(400).json({ error: 'date query param required in YYYY-MM-DD format' });
+    }
+    res.json(await getDailySummary(date));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
-  res.json(getDailySummary(date));
 });
 
-router.get('/monthly', (req, res) => {
-  const { month } = req.query;
-  if (!month || !isValidMonthStr(month)) {
-    return res.status(400).json({ error: 'month query param required in YYYY-MM format' });
+router.get('/monthly', async (req, res) => {
+  try {
+    const { month } = req.query;
+    if (!month || !isValidMonthStr(month)) {
+      return res.status(400).json({ error: 'month query param required in YYYY-MM format' });
+    }
+    res.json(await getMonthlySummary(month));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
-  res.json(getMonthlySummary(month));
 });
 
-router.get('/activity', (req, res) => {
-  res.json(getTransactionActivity());
+router.get('/activity', async (req, res) => {
+  try {
+    res.json(await getTransactionActivity());
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 export default router;

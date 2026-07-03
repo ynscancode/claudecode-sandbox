@@ -25,10 +25,14 @@ function handleError(res, err) {
   return res.status(500).json({ error: 'Internal server error' });
 }
 
-router.get('/', (req, res) => {
-  const { from, to, account_id } = req.query;
-  const accountId = account_id ? Number(account_id) : undefined;
-  res.json(listTransactionsWithBalance({ from, to, accountId }));
+router.get('/', async (req, res) => {
+  try {
+    const { from, to, account_id } = req.query;
+    const accountId = account_id ? Number(account_id) : undefined;
+    res.json(await listTransactionsWithBalance({ from, to, accountId }));
+  } catch (err) {
+    handleError(res, err);
+  }
 });
 
 // Excel export — see the "Export endpoint contract" on the team board.
@@ -36,13 +40,13 @@ router.get('/', (req, res) => {
 // required, YYYY-MM-DD) scope a single range. Reuses
 // buildTransactionsWorkbook (transactionService.js), which itself reuses
 // balanceService.listTransactionsWithBalance for rows/running balance.
-router.get('/export', (req, res) => {
+router.get('/export', async (req, res) => {
   try {
     const { from, to, all } = req.query;
     const isAllTime = all === 'true' || all === '1';
 
     if (isAllTime) {
-      const { buffer, filename } = buildTransactionsWorkbook({});
+      const { buffer, filename } = await buildTransactionsWorkbook({});
       res.set({
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="${filename}"`,
@@ -54,7 +58,7 @@ router.get('/export', (req, res) => {
       throw new ValidationError('from and to (YYYY-MM-DD) are required unless all=true');
     }
 
-    const { buffer, filename } = buildTransactionsWorkbook({ from, to });
+    const { buffer, filename } = await buildTransactionsWorkbook({ from, to });
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="${filename}"`,
@@ -65,27 +69,27 @@ router.get('/export', (req, res) => {
   }
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
-    const result = createTransaction(req.body);
+    const result = await createTransaction(req.body);
     res.status(201).json(result);
   } catch (err) {
     handleError(res, err);
   }
 });
 
-router.post('/transfer', (req, res) => {
+router.post('/transfer', async (req, res) => {
   try {
-    const result = createTransfer(req.body);
+    const result = await createTransfer(req.body);
     res.status(201).json(result);
   } catch (err) {
     handleError(res, err);
   }
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
-    const result = updateTransaction(Number(req.params.id), req.body);
+    const result = await updateTransaction(Number(req.params.id), req.body);
     res.json(result);
   } catch (err) {
     handleError(res, err);
@@ -95,18 +99,18 @@ router.put('/:id', (req, res) => {
 // Must be registered before the '/:id' route below — Express matches
 // routes top-to-bottom, and '/:id' would otherwise capture this path with
 // id="all".
-router.delete('/all', (req, res) => {
+router.delete('/all', async (req, res) => {
   try {
-    const deleted = deleteAllTransactions();
+    const deleted = await deleteAllTransactions();
     res.json({ deleted });
   } catch (err) {
     handleError(res, err);
   }
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
-    deleteTransaction(Number(req.params.id));
+    await deleteTransaction(Number(req.params.id));
     res.status(204).send();
   } catch (err) {
     handleError(res, err);

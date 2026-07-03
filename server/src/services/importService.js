@@ -1,5 +1,5 @@
 import XLSX from 'xlsx';
-import db from '../db.js';
+import client from '../db.js';
 import { createTransaction, createTransfer } from './transactionService.js';
 import { createCategory, getOutgoingNames, getIncomingNames } from './categoryService.js';
 
@@ -233,16 +233,21 @@ function assertCategoryDraftShape(draft) {
 // Commits a fully-resolved import batch: creates any missing categories
 // (skip-if-exists, case-insensitive, scoped per account+list — mirrors
 // createCategory's own dup-check scope), then inserts each transaction draft
-// via the existing transactionService entry points. One outer
-// db.transaction() (define-then-invoke, mirrors createTransfer) so any
-// ValidationError anywhere in the batch rolls back everything that ran
-// before it — nothing is written until the whole batch succeeds.
-export function commitImport({ categoriesToCreate = [], transactions = [] } = {}) {
+// via the existing transactionService entry points. Opens ONE interactive
+// libsql transaction and threads it (as `exec`) into every
+// createCategory/createTransaction/createTransfer call below — a plain
+// client.execute runs on a different connection than an already-open
+// transaction and would silently lose atomicity across the batch (see team
+// board Batch 8 contract). Any ValidationError anywhere in the batch rolls
+// back everything that ran before it — nothing is written until the whole
+// batch succeeds.
+export async function commitImport({ categoriesToCreate = [], transactions = [] } = {}) {
   if (!Array.isArray(categoriesToCreate) || !Array.isArray(transactions)) {
     throw new ValidationError('categoriesToCreate and transactions must be arrays');
   }
 
-  const txn = db.transaction(() => {
+  const tx = await client.transaction('write');
+  try {
     let created = 0;
     let transfersLinked = 0;
     let categoriesCreated = 0;
@@ -251,8 +256,8 @@ export function commitImport({ categoriesToCreate = [], transactions = [] } = {}
       assertCategoryDraftShape(draft);
       const { name, list, account_id } = draft;
       const existingNames = list === 'outgoing'
-        ? getOutgoingNames(account_id)
-        : getIncomingNames(account_id);
+        ? await getOutgoingNames(account_id, tx)
+        : await getIncomingNames(account_id, tx);
       const alreadyExists = existingNames.some(
         (existing) => existing.toLowerCase() === String(name).trim().toLowerCase()
       );
@@ -261,7 +266,7 @@ export function commitImport({ categoriesToCreate = [], transactions = [] } = {}
         // category) already covers this name — skip rather than let
         // createCategory throw and abort the whole commit.
       }
-      createCategory({ name, list, account_id });
+      await createCategory({ name, list, account_id }, tx);
       categoriesCreated += 1;
     }
 
@@ -270,33 +275,35 @@ export function commitImport({ categoriesToCreate = [], transactions = [] } = {}
         throw new ValidationError('each transaction draft must be an object');
       }
       if (draft.type === 'normal') {
-        createTransaction({
+        await createTransaction({
           date: draft.date,
           account_id: draft.account_id,
           direction: draft.direction,
           category: draft.category,
           amount: draft.amount,
           comment: draft.comment,
-        });
+        }, tx);
         created += 1;
       } else if (draft.type === 'transfer') {
-        createTransfer({
+        await createTransfer({
           date: draft.date,
           from_account_id: draft.from_account_id,
           to_account_id: draft.to_account_id,
           amount: draft.amount,
           comment: draft.comment,
-        });
+        }, tx);
         transfersLinked += 1;
       } else {
         throw new ValidationError(`unknown transaction draft type "${draft && draft.type}"`);
       }
     }
 
+    await tx.commit();
     return { created, transfersLinked, categoriesCreated };
-  });
-
-  return txn();
+  } catch (err) {
+    await tx.rollback();
+    throw err;
+  }
 }
 
 export { ValidationError, MAX_IMPORT_ROWS };

@@ -24,6 +24,22 @@ if (corsOrigin) {
   app.use(cors());
 }
 
+// Simple bearer-token auth gate. When API_TOKEN is set (production), every
+// request must carry `Authorization: Bearer <token>` — or, for the export
+// download endpoint which uses direct anchor navigation (can't set headers),
+// a `?token=<token>` query param is also accepted on that one route.
+// When API_TOKEN is unset (local dev), the gate is skipped entirely.
+const apiToken = process.env.API_TOKEN;
+if (apiToken) {
+  app.use((req, res, next) => {
+    if (req.method === 'OPTIONS') return next();
+    const bearer = req.headers['authorization'];
+    const queryToken = req.query.token;
+    if (bearer === `Bearer ${apiToken}` || queryToken === apiToken) return next();
+    res.status(401).json({ error: 'Unauthorized' });
+  });
+}
+
 app.use(express.json());
 
 app.use('/api/accounts', accountsRouter);
@@ -38,6 +54,14 @@ app.use('/api/categories', categoriesRouter);
 app.use('/api/imports', express.json({ limit: '25mb' }), importsRouter);
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`Budget server listening on http://localhost:${PORT}`);
-});
+// On Vercel this module is imported by api/index.js as a serverless handler
+// — there is no long-running process to bind a port on, and calling
+// app.listen() there would be a no-op at best / an error at worst. Local
+// dev and any non-Vercel host (still start the server normally.
+if (process.env.VERCEL !== '1') {
+  app.listen(PORT, () => {
+    console.log(`Budget server listening on http://localhost:${PORT}`);
+  });
+}
+
+export default app;

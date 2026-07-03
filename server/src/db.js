@@ -1,72 +1,69 @@
-import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createClient } from '@libsql/client';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// Configurable so a deployed instance (e.g. Fly.io) can point this at a
-// mounted persistent volume (e.g. /data/budget.db) instead of the repo-local
-// default used in local dev. Falls back to the original hardcoded path when
-// DB_PATH is unset, so local dev/smoke-test behavior is unchanged.
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'budget.db');
 
-// On a fresh volume mount (e.g. Fly's /data) the parent directory exists but
-// is otherwise empty — better-sqlite3 will not create missing directories on
-// its own, only the file. Ensure the directory exists before opening.
-const dbDir = path.dirname(DB_PATH);
-fs.mkdirSync(dbDir, { recursive: true });
+// Turso (cloud libSQL) connection — replaces the local better-sqlite3 file.
+// TURSO_DATABASE_URL/TURSO_AUTH_TOKEN are required; there is no local-file
+// fallback anymore (see team board Batch 8 — Vercel serverless + Turso).
+const client = createClient({
+  url: process.env.TURSO_DATABASE_URL,
+  authToken: process.env.TURSO_AUTH_TOKEN,
+});
 
-const db = new Database(DB_PATH);
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+async function tableExists(name) {
+  const result = await client.execute({
+    sql: "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+    args: [name],
+  });
+  return result.rows[0] !== undefined;
+}
 
-function runMigrations() {
-  const hasTransactionsTable = db
-    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='transactions'")
-    .get();
+async function applyMigration(filename) {
+  const migrationPath = path.join(__dirname, 'migrations', filename);
+  const sql = fs.readFileSync(migrationPath, 'utf8');
+  await client.executeMultiple(sql);
+}
+
+async function runMigrations() {
+  const hasTransactionsTable = await tableExists('transactions');
   if (!hasTransactionsTable) {
-    const migrationPath = path.join(__dirname, 'migrations', '001_init.sql');
-    const sql = fs.readFileSync(migrationPath, 'utf8');
-    db.exec(sql);
+    await applyMigration('001_init.sql');
   }
 
-  const hasBudgetsTable = db
-    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='budgets'")
-    .get();
+  const hasBudgetsTable = await tableExists('budgets');
   if (!hasBudgetsTable) {
-    const migrationPath = path.join(__dirname, 'migrations', '002_budgets.sql');
-    const sql = fs.readFileSync(migrationPath, 'utf8');
-    db.exec(sql);
+    await applyMigration('002_budgets.sql');
   }
 
-  const hasCategoriesTable = db
-    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='categories'")
-    .get();
+  const hasCategoriesTable = await tableExists('categories');
   if (!hasCategoriesTable) {
-    const migrationPath = path.join(__dirname, 'migrations', '003_categories.sql');
-    const sql = fs.readFileSync(migrationPath, 'utf8');
-    db.exec(sql);
+    await applyMigration('003_categories.sql');
   }
 
-  const hasCategoryAccountIdColumn = db
-    .prepare("SELECT 1 FROM pragma_table_info('categories') WHERE name = 'account_id'")
-    .get();
+  const hasCategoryAccountIdColumn = (
+    await client.execute("SELECT 1 FROM pragma_table_info('categories') WHERE name = 'account_id'")
+  ).rows[0] !== undefined;
   if (!hasCategoryAccountIdColumn) {
-    const migrationPath = path.join(__dirname, 'migrations', '004_category_accounts.sql');
-    const sql = fs.readFileSync(migrationPath, 'utf8');
-    db.exec(sql);
+    await applyMigration('004_category_accounts.sql');
   }
 
-  const hasOldSeedColor = db
-    .prepare("SELECT 1 FROM categories WHERE is_system = 0 AND name = 'food' AND color = '#CC785C'")
-    .get();
+  const hasOldSeedColor = (
+    await client.execute("SELECT 1 FROM categories WHERE is_system = 0 AND name = 'food' AND color = '#CC785C'")
+  ).rows[0] !== undefined;
   if (hasOldSeedColor) {
-    const migrationPath = path.join(__dirname, 'migrations', '005_recolor_categories.sql');
-    const sql = fs.readFileSync(migrationPath, 'utf8');
-    db.exec(sql);
+    await applyMigration('005_recolor_categories.sql');
   }
 }
 
-runMigrations();
+// Top-level await: this suspends the whole ESM module graph (index.js ->
+// routes -> services -> db.js) until migrations finish, so no request can
+// ever race an unmigrated DB — including on a Vercel cold start, where the
+// platform awaits this module before invoking the serverless handler.
+const migrationsReady = runMigrations();
+await migrationsReady;
 
-export default db;
+export const ready = migrationsReady;
+export default client;

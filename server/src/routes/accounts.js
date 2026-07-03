@@ -3,8 +3,13 @@ import { getAccountBalances } from '../services/balanceService.js';
 
 const router = Router();
 
-router.get('/', (req, res) => {
-  res.json(getAccountBalances());
+router.get('/', async (req, res) => {
+  try {
+    res.json(await getAccountBalances());
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 export default router;
