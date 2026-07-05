@@ -2543,3 +2543,30 @@ td {
     max-width: calc(100vw - 32px);
   }
 }
+
+/* Mobile browsers auto-zoom into any focused input whose font-size is < 16px,
+   and that zoom persists after a modal closes (page reappears magnified).
+   Force >=16px on touch devices only so the auto-zoom never triggers, while
+   leaving desktop's tighter 14px/13px/11.5px density and users' own
+   pinch-zoom untouched (no viewport-lock, no maximum-scale/user-scalable).
+   Every selector below currently resolves to a sub-16px effective font-size
+   on some focusable control — each is repeated here at matching specificity
+   so this rule actually wins the cascade instead of losing to the more
+   specific desktop rule further down the file. This block must stay at the
+   very end of the file: @media adds no specificity, so an equal-specificity
+   desktop rule appearing later in source order would otherwise win instead
+   of this one — end-of-file placement is what makes it win. */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea,
+  .form-field input,
+  .form-field select,
+  .inline-edit-input,
+  .daily-budget-editor input,
+  .month-switcher-input,
+  .import-flag-actions select,
+  .import-flag-actions input {
+    font-size: 16px;
+  }
+}
