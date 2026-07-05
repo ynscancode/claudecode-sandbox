@@ -10,6 +10,11 @@ import { useState } from 'react'
 export function LoginForm({ onSubmit, submitLabel = 'Log in' }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  // Login-stage only (per the tech-lead contract) — default checked so
+  // pre-existing behavior (durable localStorage session) is unchanged unless
+  // the user opts out. Threaded through as `persist` on the credentials
+  // object; AuthContext.login destructures it with the same default.
+  const [stayLoggedIn, setStayLoggedIn] = useState(true)
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -22,7 +27,7 @@ export function LoginForm({ onSubmit, submitLabel = 'Log in' }) {
     }
     setSubmitting(true)
     try {
-      await onSubmit({ username: username.trim(), password })
+      await onSubmit({ username: username.trim(), password, persist: stayLoggedIn })
     } catch (err) {
       setError(err.message)
     } finally {
@@ -49,6 +54,14 @@ export function LoginForm({ onSubmit, submitLabel = 'Log in' }) {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
+      </label>
+      <label className="form-checkbox-field">
+        <input
+          type="checkbox"
+          checked={stayLoggedIn}
+          onChange={(e) => setStayLoggedIn(e.target.checked)}
+        />
+        Stay signed in
       </label>
       {error && <span className="error-text" role="alert">{error}</span>}
       <button type="submit" className="btn auth-submit" disabled={submitting}>

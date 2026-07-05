@@ -14,3 +14,10 @@ server/.env.*
 !.env.example
 !server/.env.example
 .secrets/
+.vercel
+.env*
+
+# internal team scaffolding, not for the repo
+TEAM-BOARD.md
+/auth
+/auth-wal

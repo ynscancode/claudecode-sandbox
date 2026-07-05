@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { User, ChevronDown, RefreshCw, Plus, LogOut } from 'lucide-react'
+import { User, ChevronDown, RefreshCw, Plus, LogOut, Trash2 } from 'lucide-react'
 import { useAuth } from '../../contexts/auth.js'
 import AddAccountModal from '../auth/AddAccountModal.jsx'
+import DeleteAccountModal from '../auth/DeleteAccountModal.jsx'
 
 // Header's account switcher (contract G / BATCH 11): current username +
 // dropdown of other known sessions (`ledger.authSessions`), "Add account",
@@ -12,6 +13,7 @@ export default function AccountSwitcher() {
   const { user, sessions, switchAccount, logout } = useAuth()
   const [open, setOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [switchError, setSwitchError] = useState(null)
   const [switching, setSwitching] = useState(false)
   const rootRef = useRef(null)
@@ -79,7 +81,7 @@ export default function AccountSwitcher() {
                   disabled={switching}
                 >
                   <RefreshCw size={13} aria-hidden="true" />
-                  {name}
+                  <span className="account-switcher-item-label">{name}</span>
                 </button>
               ))}
             </div>
@@ -103,10 +105,20 @@ export default function AccountSwitcher() {
             <LogOut size={13} aria-hidden="true" />
             Log out
           </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="account-switcher-item account-switcher-item-danger"
+            onClick={() => { setOpen(false); setDeleteOpen(true) }}
+          >
+            <Trash2 size={13} aria-hidden="true" />
+            Delete account
+          </button>
         </div>
       )}
 
       {addOpen && <AddAccountModal onClose={() => setAddOpen(false)} />}
+      {deleteOpen && <DeleteAccountModal onClose={() => setDeleteOpen(false)} />}
     </div>
   )
 }

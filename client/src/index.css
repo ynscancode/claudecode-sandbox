@@ -513,6 +513,7 @@ select {
   display: flex;
   align-items: center;
   gap: 9px;
+  min-width: 0;
   padding: 8px;
   border: none;
   border-radius: 6px;
@@ -521,6 +522,16 @@ select {
   font: 500 13px/1 var(--font-ui);
   text-align: left;
   cursor: pointer;
+}
+
+/* Lets a long username in the "Switch account" list truncate with an
+   ellipsis instead of forcing the menu wider than its clamped width
+   (see the mobile `.account-switcher-menu` override below). */
+.account-switcher-item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .account-switcher-item:hover {
@@ -1318,6 +1329,25 @@ td {
 .form-field input,
 .form-field select {
   font: 400 14px/1.2 var(--font-ui);
+}
+
+/* "Stay signed in" (LoginForm) — a checkbox field alongside form-field's
+   labeled inputs, using the same normal-case UI font rather than form-field's
+   uppercase label styling (a checkbox's label reads better sentence-case). */
+.form-checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 500 13px/1.2 var(--font-ui);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.form-checkbox-field input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 
 /* ---------- Loading / errors ---------- */
@@ -2472,7 +2502,32 @@ td {
     text-align: right;
   }
 
-  /* ---- Auth screen / account switcher ---- */
+  /* ---- Auth screen / account switcher ----
+     BUG FIX (BATCH 11 follow-up, real-device report): the dropdown menu is
+     `position: absolute; right: 0` (index.css above) anchored to
+     `.account-switcher`'s own box, not to the viewport. On mobile
+     `.account-switcher` sits inside `.app-header-right` *before* the theme
+     `.pill-group` (see Header.jsx), so the trigger's right edge lands well
+     short of the header's actual right edge — the pill-group occupies the
+     space to its right. `right: 0` on the menu then measures from that
+     inner point, and the menu's width pushed the whole box left of the
+     viewport's left edge (clipped/unreachable), not off the right side.
+     Fix: reorder the two flex children (CSS `order`, mobile-only — desktop
+     visual order is untouched) so the switcher trigger becomes the
+     right-most item in `.app-header-right`, putting its right edge at the
+     header's own right edge; `right: 0` on the menu now measures from a
+     point that's actually near the viewport edge. Combined with an
+     explicit `max-width` clamp (belt-and-suspenders — keeps the menu
+     on-screen even if header padding/gap values change later), the menu
+     can no longer extend past the left edge. */
+  .account-switcher {
+    order: 2;
+  }
+
+  .pill-group {
+    order: 1;
+  }
+
   .auth-card {
     padding: 22px;
   }
@@ -2485,5 +2540,6 @@ td {
     right: 0;
     left: auto;
     width: max(200px, 60vw);
+    max-width: calc(100vw - 32px);
   }
 }

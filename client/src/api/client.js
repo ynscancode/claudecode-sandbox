@@ -15,26 +15,48 @@ export const API_TOKEN = import.meta.env.VITE_API_TOKEN || '';
 // writes the same key directly for the initial session-check-on-load.
 const AUTH_TOKEN_KEY = 'ledger.authToken';
 
+// "Stay signed in" (login-stage only, see AuthForms.jsx's LoginForm): when
+// checked (default, preserves pre-existing behavior) the token lives in
+// localStorage and survives a browser close; when unchecked it lives in
+// sessionStorage instead, so it's gone once the browser/tab session ends.
+// There must be exactly one active token at a time, so every write to one
+// storage removes the key from the other.
 export function getAuthToken() {
   try {
-    return localStorage.getItem(AUTH_TOKEN_KEY) || '';
+    return localStorage.getItem(AUTH_TOKEN_KEY) || sessionStorage.getItem(AUTH_TOKEN_KEY) || '';
   } catch {
     return '';
   }
 }
 
-export function setAuthToken(token) {
+export function setAuthToken(token, { persist = true } = {}) {
   try {
-    if (token) localStorage.setItem(AUTH_TOKEN_KEY, token);
-    else localStorage.removeItem(AUTH_TOKEN_KEY);
+    if (!token) {
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      sessionStorage.removeItem(AUTH_TOKEN_KEY);
+      return;
+    }
+    if (persist) {
+      localStorage.setItem(AUTH_TOKEN_KEY, token);
+      sessionStorage.removeItem(AUTH_TOKEN_KEY);
+    } else {
+      sessionStorage.setItem(AUTH_TOKEN_KEY, token);
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+    }
   } catch {
-    // localStorage unavailable (e.g. private mode) — session just won't
-    // persist across a reload; matches ThemeProvider's non-fatal handling.
+    // localStorage/sessionStorage unavailable (e.g. private mode) — session
+    // just won't persist across a reload; matches ThemeProvider's non-fatal
+    // handling.
   }
 }
 
 export function clearAuthToken() {
-  setAuthToken(null);
+  try {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    sessionStorage.removeItem(AUTH_TOKEN_KEY);
+  } catch {
+    // Storage unavailable — nothing to clear.
+  }
 }
 
 // Exported so any caller that needs to build a raw request URL outside this
@@ -150,4 +172,13 @@ export const api = {
   guest: () => request('POST', '/auth/guest', {}),
   me: () => request('GET', '/auth/me'),
   logout: () => request('POST', '/auth/logout', {}),
+  // Delete-account (senior-backend-dev contract, TEAM-BOARD.md "delete
+  // account" note): body's `password` is required for a real account,
+  // ignored server-side for a guest (guests have no password_hash to
+  // verify). A wrong-password 401 comes back from `/auth/me`, which
+  // reportIfUnauthorized() already excludes from the global
+  // ledger:unauthorized broadcast (path.startsWith('/auth/')) — so it stays
+  // an inline, catchable form error here rather than dropping the CURRENT
+  // (still-valid) session to the auth screen.
+  deleteAccount: ({ password } = {}) => request('DELETE', '/auth/me', { password }),
 };

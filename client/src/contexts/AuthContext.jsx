@@ -92,15 +92,22 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener('ledger:unauthorized', handleUnauthorized)
   }, [])
 
-  const applySession = useCallback((token, sessionUser) => {
-    setAuthToken(token)
-    rememberSession(sessionUser.username, token)
+  // `persist` (default true, preserves pre-existing behavior everywhere
+  // except an unchecked "Stay signed in" on the login form): true -> token
+  // in localStorage + recorded in the durable ledger.authSessions map (so it
+  // shows up as a switchable saved session); false -> token in
+  // sessionStorage only, gone once the browser/tab session ends, and
+  // deliberately NOT written to ledger.authSessions so it doesn't linger as
+  // a switchable session after the browser closes.
+  const applySession = useCallback((token, sessionUser, { persist = true } = {}) => {
+    setAuthToken(token, { persist })
+    if (persist) rememberSession(sessionUser.username, token)
     setUser(sessionUser)
   }, [rememberSession])
 
-  const login = useCallback(async ({ username, password }) => {
+  const login = useCallback(async ({ username, password, persist = true }) => {
     const data = await api.login({ username, password })
-    applySession(data.token, data.user)
+    applySession(data.token, data.user, { persist })
     return data.user
   }, [applySession])
 
@@ -126,6 +133,23 @@ export function AuthProvider({ children }) {
       // call fails; the token discard below is what actually ends the
       // session from the client's point of view.
     }
+    setUser((current) => {
+      if (current) forgetSession(current.username)
+      return null
+    })
+    clearAuthToken()
+  }, [forgetSession])
+
+  // Delete-account (TEAM-BOARD.md senior-backend-dev contract: DELETE
+  // /api/auth/me). On success there's no token to keep — the account is
+  // gone server-side — so tear down exactly like logout for the CURRENT
+  // user: drop their ledger.authSessions entry, clear the active token
+  // (both storages, via clearAuthToken), and setUser(null) so App.jsx drops
+  // to <AuthScreen>. On failure (wrong password / missing password), throw
+  // so the confirm modal can show the error inline — the session must NOT
+  // be torn down on a failed attempt, since the account still exists.
+  const deleteAccount = useCallback(async (password) => {
+    await api.deleteAccount({ password })
     setUser((current) => {
       if (current) forgetSession(current.username)
       return null
@@ -171,9 +195,10 @@ export function AuthProvider({ children }) {
     signup,
     guest,
     logout,
+    deleteAccount,
     switchAccount,
     addAccount,
-  }), [user, loading, sessions, login, signup, guest, logout, switchAccount, addAccount])
+  }), [user, loading, sessions, login, signup, guest, logout, deleteAccount, switchAccount, addAccount])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

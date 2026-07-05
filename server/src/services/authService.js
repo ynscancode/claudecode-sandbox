@@ -198,6 +198,60 @@ export async function createGuest() {
   }
 }
 
+// DELETE /api/auth/me — self-only account deletion. userId comes from the
+// verified JWT (req.userId), never from the request body/params, so there is
+// no path for a user to delete anyone but themselves. Guests (password_hash
+// IS NULL) skip password verification entirely — there's nothing to confirm
+// and no way for a guest to ever supply one. Everything below runs inside
+// ONE interactive write transaction, deleting in FK-safe order: null this
+// user's self-referencing linked_transaction_id first (same reason
+// transactionService.deleteAllTransactions does it, scoped here to this
+// user's rows only), then transactions, then budgets, then this user's
+// non-system categories (system rows, is_system=1/user_id IS NULL, are never
+// touched), then the users row itself.
+export async function deleteAccount(userId, { password } = {}) {
+  const tx = await client.transaction('write');
+  try {
+    const user = (
+      await tx.execute({ sql: 'SELECT * FROM users WHERE id = :userId', args: { userId } })
+    ).rows[0];
+    if (!user) {
+      const err = new Error('user not found');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    if (user.password_hash) {
+      if (typeof password !== 'string' || password.length === 0) {
+        throw new ValidationError('password is required');
+      }
+      const valid = await bcrypt.compare(password, user.password_hash);
+      if (!valid) {
+        throw new AuthenticationError('Incorrect password');
+      }
+    }
+    // else: guest (password_hash IS NULL) — no password to verify, proceed.
+
+    await tx.execute({
+      sql: 'UPDATE transactions SET linked_transaction_id = NULL WHERE user_id = :userId',
+      args: { userId },
+    });
+    await tx.execute({ sql: 'DELETE FROM transactions WHERE user_id = :userId', args: { userId } });
+    await tx.execute({ sql: 'DELETE FROM budgets WHERE user_id = :userId', args: { userId } });
+    await tx.execute({
+      sql: 'DELETE FROM categories WHERE user_id = :userId AND is_system = 0',
+      args: { userId },
+    });
+    await tx.execute({ sql: 'DELETE FROM users WHERE id = :userId', args: { userId } });
+
+    await tx.commit();
+    return { ok: true };
+  } catch (err) {
+    await tx.rollback();
+    throw err;
+  }
+}
+
 // GET /api/auth/me — looked up by req.userId (set by requireUser from the
 // verified JWT's `sub` claim), not trusted from any client-supplied id.
 export async function getUser(userId) {
