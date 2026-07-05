@@ -1,5 +1,12 @@
 import { Router } from 'express';
-import { getBudgetsForMonth, setBudget, ValidationError } from '../services/budgetService.js';
+import {
+  getBudgetsForMonth,
+  setBudget,
+  copyBudgetsFromRecentMonth,
+  clearBudgetsForMonth,
+  getRecentBudgetMonth,
+  ValidationError,
+} from '../services/budgetService.js';
 
 const router = Router();
 
@@ -24,9 +31,39 @@ router.get('/', async (req, res) => {
   }
 });
 
+router.get('/recent', async (req, res) => {
+  try {
+    const { month } = req.query;
+    const result = await getRecentBudgetMonth(month, req.userId);
+    res.json(result);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
 router.put('/', async (req, res) => {
   try {
     const result = await setBudget(req.body, req.userId);
+    res.json(result);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.post('/copy-from-recent', async (req, res) => {
+  try {
+    const { month } = req.body;
+    const result = await copyBudgetsFromRecentMonth(month, req.userId);
+    res.json(result);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.post('/clear', async (req, res) => {
+  try {
+    const { month } = req.body;
+    const result = await clearBudgetsForMonth(month, req.userId);
     res.json(result);
   } catch (err) {
     handleError(res, err);

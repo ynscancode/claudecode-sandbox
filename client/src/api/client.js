@@ -150,6 +150,9 @@ export const api = {
 
   getBudgets: (month) => request('GET', `/budgets?month=${month}`),
   setBudget: ({ month, category, amount }) => request('PUT', '/budgets', { month, category, amount }),
+  getRecentBudgetMonth: (month) => request('GET', `/budgets/recent?month=${month}`),
+  copyBudgetsFromRecent: (month) => request('POST', '/budgets/copy-from-recent', { month }),
+  clearBudgets: (month) => request('POST', '/budgets/clear', { month }),
 
   getCategories: (accountId) => request('GET', `/categories?account_id=${accountId}`),
   createCategory: ({ name, list, account_id }) => request('POST', '/categories', { name, list, account_id }),

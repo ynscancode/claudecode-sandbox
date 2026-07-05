@@ -28,20 +28,55 @@ export default function BudgetPage() {
   const [savingCategory, setSavingCategory] = useState(null)
   const [rowErrors, setRowErrors] = useState({})
   const [catManagerOpen, setCatManagerOpen] = useState(false)
+  const [recentMonth, setRecentMonth] = useState(null)
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [actionError, setActionError] = useState(null)
 
   async function loadAll(forMonth) {
     setLoading(true)
-    const [monthly, budgetsRes] = await Promise.all([
+    const [monthly, budgetsRes, recentRes] = await Promise.all([
       api.getMonthlySummary(forMonth),
       api.getBudgets(forMonth),
+      api.getRecentBudgetMonth(forMonth),
     ])
     setSummary(monthly)
     const map = {}
     budgetsRes.budgets.forEach((b) => { map[b.category] = b.amount })
     setBudgetsByCategory(map)
+    setRecentMonth(recentRes.month)
     setDrafts({})
     setRowErrors({})
     setLoading(false)
+  }
+
+  async function handleCopyFromRecent() {
+    if (!recentMonth || busy) return
+    setBusy(true)
+    setActionError(null)
+    try {
+      await api.copyBudgetsFromRecent(month)
+      await loadAll(month)
+    } catch (err) {
+      setActionError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleConfirmClear() {
+    if (busy) return
+    setBusy(true)
+    setActionError(null)
+    try {
+      await api.clearBudgets(month)
+      await loadAll(month)
+    } catch (err) {
+      setActionError(err.message)
+    } finally {
+      setBusy(false)
+      setConfirmClearOpen(false)
+    }
   }
 
   useEffect(() => {
@@ -112,6 +147,53 @@ export default function BudgetPage() {
           <h2>Category budgets</h2>
           <span style={{ color: 'var(--muted)' }}>Total budgeted {formatCurrency(totalBudgeted)}</span>
         </div>
+
+        <div className="budget-actions-row" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={!recentMonth || busy}
+            onClick={handleCopyFromRecent}
+          >
+            {recentMonth ? `Copy from ${monthLabel(recentMonth)}` : 'No prior budgets'}
+          </button>
+
+          {!confirmClearOpen && (
+            <button
+              type="button"
+              className="btn btn-danger"
+              disabled={busy}
+              onClick={() => setConfirmClearOpen(true)}
+            >
+              Clear
+            </button>
+          )}
+
+          {confirmClearOpen && (
+            <>
+              <span style={{ color: 'var(--muted)' }}>Clear all budgets for {monthLabel(month)}?</span>
+              <button
+                type="button"
+                className="btn btn-danger"
+                disabled={busy}
+                onClick={handleConfirmClear}
+              >
+                Confirm clear
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={busy}
+                onClick={() => setConfirmClearOpen(false)}
+              >
+                Cancel
+              </button>
+            </>
+          )}
+        </div>
+
+        {actionError && <span className="error-text" role="alert">{actionError}</span>}
+
         {rows.map((row) => {
           const draftValue = drafts[row.category]
           const inputValue = draftValue !== undefined ? draftValue : String(row.budget)
