@@ -361,6 +361,8 @@ export default function DashboardPage() {
   const saveTotalOut = saveOut.reduce((s, c) => s + c.value, 0)
   const saveTotalIn = saveIn.reduce((s, c) => s + c.value, 0)
 
+  const monthShortLabel = monthLabel(selectedMonth).split(' ')[0]
+
   return (
     <div className="page-animate">
       <div className="page-header-row">
@@ -642,7 +644,7 @@ export default function DashboardPage() {
                   style={{ height: `${bar.height}%`, background: bar.bg, opacity: bar.opacity }}
                 />
                 <div className={tooltipClassName} role="tooltip">
-                  <div className="bar-chart-tooltip-day">{monthLabel(selectedMonth).split(' ')[0]} {bar.day}</div>
+                  <div className="bar-chart-tooltip-day">{monthShortLabel} {bar.day}</div>
                   <div className="bar-chart-tooltip-total">{formatOutflow(bar.total)} spent</div>
                   {bar.biggest ? (
                     <div className="bar-chart-tooltip-biggest">
@@ -658,8 +660,8 @@ export default function DashboardPage() {
             })}
           </div>
           <div className="bar-chart-footer">
-            <span>{monthLabel(selectedMonth).split(' ')[0]} 1</span>
-            <span>{monthLabel(selectedMonth).split(' ')[0]} {totalDays}</span>
+            <span>{monthShortLabel} 1</span>
+            <span>{monthShortLabel} {totalDays}</span>
           </div>
         </div>
       </div>

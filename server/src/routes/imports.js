@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import multer from 'multer';
 import crypto from 'crypto';
-import { parseFile, commitImport, ValidationError } from '../services/importService.js';
+import { parseFile, commitImport } from '../services/importService.js';
 import { suggestMapping } from '../services/importLlmService.js';
 import { getOutgoingNames, getIncomingNames } from '../services/categoryService.js';
 import { ACCOUNTS } from '../constants/categories.js';
+import { sendError as handleError } from '../utils/errorHandler.js';
 
 const router = Router();
 
@@ -14,17 +15,6 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
 });
-
-function handleError(res, err) {
-  if (err instanceof ValidationError || err.statusCode === 400) {
-    return res.status(400).json({ error: err.message });
-  }
-  if (err.statusCode === 404) {
-    return res.status(404).json({ error: err.message });
-  }
-  console.error(err);
-  return res.status(500).json({ error: 'Internal server error' });
-}
 
 router.post('/parse', (req, res) => {
   upload.single('file')(req, res, (uploadErr) => {

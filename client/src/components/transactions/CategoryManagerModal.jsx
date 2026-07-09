@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { api } from '../../api/client.js'
 import { useCategories } from '../../contexts/categories.js'
 import { ACCOUNTS, ACCOUNT_NAMES } from '../../constants/categories.js'
+import { getModalRoot } from '../../utils/modalRoot.js'
 
 const RESERVED_NAMES = ['transfer-in', 'transfer-out']
 
@@ -231,6 +232,6 @@ export default function CategoryManagerModal({ accountId, initialAccountId, onCl
         )}
       </div>
     </div>,
-    document.getElementById('modal-root') || document.body
+    getModalRoot()
   )
 }

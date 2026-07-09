@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AlertTriangle } from 'lucide-react'
 import { useAuth } from '../../contexts/auth.js'
+import { getModalRoot } from '../../utils/modalRoot.js'
 
 // Account-switcher's "Delete account" confirmation. Same
 // portal/overlay/panel conventions as TransactionModal.jsx/AddAccountModal.jsx
@@ -42,7 +43,7 @@ export default function DeleteAccountModal({ onClose }) {
     }
   }
 
-  const portalTarget = document.getElementById('modal-root') || document.body
+  const portalTarget = getModalRoot()
 
   return createPortal(
     <div className="modal-overlay" onClick={submitting ? undefined : onClose}>

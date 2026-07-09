@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import MonthSwitcher from '../layout/MonthSwitcher.jsx'
 import { monthRangeFor, monthLabel } from '../../utils/dateUtils.js'
 import { apiUrl, API_TOKEN, getAuthToken } from '../../api/client.js'
+import { getModalRoot } from '../../utils/modalRoot.js'
 
 // Mirrors the portal/overlay/panel conventions of TransactionModal.jsx and
 // ClearHistoryModal.jsx (.modal-overlay / .modal-panel / .modal-head /
@@ -66,7 +67,7 @@ export default function ExportModal({ month, activity, onClose }) {
     onClose()
   }
 
-  const portalTarget = document.getElementById('modal-root') || document.body
+  const portalTarget = getModalRoot()
 
   return createPortal(
     <div className="modal-overlay" onClick={onClose}>

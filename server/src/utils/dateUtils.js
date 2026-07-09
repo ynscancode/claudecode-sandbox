@@ -1,7 +1,3 @@
-export function yearOf(dateStr) {
-  return dateStr.slice(0, 4);
-}
-
 export function monthOf(dateStr) {
   return dateStr.slice(0, 7); // YYYY-MM
 }

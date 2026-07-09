@@ -29,7 +29,7 @@ const LISTS = ['outgoing', 'incoming'];
 // rows are no longer NULL/unclaimed. transfer-in/transfer-out are NOT
 // included here — they are system-managed, account_id IS NULL, user_id IS
 // NULL, and already exist globally; never re-seeded per-user.
-export const SEED_CATEGORIES = [
+const SEED_CATEGORIES = [
   { name: 'food', list: 'outgoing', color: '#C76060' },
   { name: 'drinks', list: 'outgoing', color: '#60C7C7' },
   { name: 'transport', list: 'outgoing', color: '#C79E60' },
@@ -349,4 +349,4 @@ export async function isValidNormalCategory(category, direction, accountId, user
   return Boolean(row);
 }
 
-export { ValidationError, NotFoundError };
+export { ValidationError };

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AlertTriangle } from 'lucide-react'
 import { api } from '../../api/client.js'
+import { getModalRoot } from '../../utils/modalRoot.js'
 
 const CONFIRM_PHRASE = 'DELETE'
 
@@ -63,7 +64,7 @@ export default function ClearHistoryModal({ onClose, onCleared }) {
     fireDelete()
   }
 
-  const portalTarget = document.getElementById('modal-root') || document.body
+  const portalTarget = getModalRoot()
 
   return createPortal(
     <div className="modal-overlay" onClick={submitting ? undefined : onClose}>

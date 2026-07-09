@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useAuth } from '../../contexts/auth.js'
 import { LoginForm, SignupForm } from './AuthForms.jsx'
+import { getModalRoot } from '../../utils/modalRoot.js'
 
 // Header's "Add account" — same modal/overlay/portal conventions as
 // TransactionModal.jsx (.modal-overlay/.modal-panel/.modal-head/.modal-tabs,
@@ -24,7 +25,7 @@ export default function AddAccountModal({ onClose }) {
     onClose()
   }
 
-  const portalTarget = document.getElementById('modal-root') || document.body
+  const portalTarget = getModalRoot()
 
   return createPortal(
     <div className="modal-overlay" onClick={onClose}>

@@ -1,30 +1,9 @@
 import { Router } from 'express';
-import {
-  signup,
-  login,
-  createGuest,
-  getUser,
-  deleteAccount,
-  ValidationError,
-  AuthenticationError,
-} from '../services/authService.js';
+import { signup, login, createGuest, getUser, deleteAccount } from '../services/authService.js';
 import requireUser from '../middleware/requireUser.js';
+import { sendError as handleError } from '../utils/errorHandler.js';
 
 const router = Router();
-
-function handleError(res, err) {
-  if (err instanceof AuthenticationError || err.statusCode === 401) {
-    return res.status(401).json({ error: err.message });
-  }
-  if (err instanceof ValidationError || err.statusCode === 400) {
-    return res.status(400).json({ error: err.message });
-  }
-  if (err.statusCode === 404) {
-    return res.status(404).json({ error: err.message });
-  }
-  console.error(err);
-  return res.status(500).json({ error: 'Internal server error' });
-}
 
 router.post('/signup', async (req, res) => {
   try {

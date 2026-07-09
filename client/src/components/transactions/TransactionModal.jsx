@@ -4,6 +4,7 @@ import { ACCOUNTS, ACCOUNT_NAMES } from '../../constants/categories.js'
 import { todayStr } from '../../utils/dateUtils.js'
 import { useCategories } from '../../contexts/categories.js'
 import CategoryManagerModal from './CategoryManagerModal.jsx'
+import { getModalRoot } from '../../utils/modalRoot.js'
 
 const TRANSFER_DIRECTIONS = [
   { value: 'savings-to-spending', label: 'Savings -> Spending (topup)', from: ACCOUNTS.SAVINGS, to: ACCOUNTS.SPENDING, defaultComment: 'topup spending from savings' },
@@ -153,7 +154,7 @@ export default function TransactionModal({ initialMode = 'normal', onClose, onCr
     }
   }
 
-  const portalTarget = document.getElementById('modal-root') || document.body
+  const portalTarget = getModalRoot()
 
   return createPortal(
     <div className="modal-overlay" onClick={onClose}>

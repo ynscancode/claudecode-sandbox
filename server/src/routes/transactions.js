@@ -9,21 +9,11 @@ import {
   buildTransactionsWorkbook,
   ValidationError,
 } from '../services/transactionService.js';
+import { sendError as handleError } from '../utils/errorHandler.js';
 
 const router = Router();
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-function handleError(res, err) {
-  if (err instanceof ValidationError || err.statusCode === 400) {
-    return res.status(400).json({ error: err.message });
-  }
-  if (err.statusCode === 404) {
-    return res.status(404).json({ error: err.message });
-  }
-  console.error(err);
-  return res.status(500).json({ error: 'Internal server error' });
-}
 
 router.get('/', async (req, res) => {
   try {
@@ -45,20 +35,11 @@ router.get('/export', async (req, res) => {
     const { from, to, all } = req.query;
     const isAllTime = all === 'true' || all === '1';
 
-    if (isAllTime) {
-      const { buffer, filename } = await buildTransactionsWorkbook({}, req.userId);
-      res.set({
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-      });
-      return res.send(buffer);
-    }
-
-    if (!from || !to || !DATE_RE.test(from) || !DATE_RE.test(to)) {
+    if (!isAllTime && (!from || !to || !DATE_RE.test(from) || !DATE_RE.test(to))) {
       throw new ValidationError('from and to (YYYY-MM-DD) are required unless all=true');
     }
 
-    const { buffer, filename } = await buildTransactionsWorkbook({ from, to }, req.userId);
+    const { buffer, filename } = await buildTransactionsWorkbook(isAllTime ? {} : { from, to }, req.userId);
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="${filename}"`,

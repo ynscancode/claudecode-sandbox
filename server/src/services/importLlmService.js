@@ -48,8 +48,6 @@ const AMOUNT_MODES = new Set(['single', 'debit-credit']);
 const CATEGORY_LISTS = new Set(['outgoing', 'incoming']);
 const VALID_ACCOUNT_IDS = new Set([1, 2]);
 
-class ImportLlmNotConfiguredError extends Error {}
-
 // ---------------------------------------------------------------------------
 // Safe diagnostic logging — NEVER logs the API key, Authorization header,
 // request body, sampleRows, response body text, headers content,
@@ -98,10 +96,6 @@ function readConfig() {
   if (parsed.protocol !== 'https:') return null;
 
   return { apiKey, model, baseUrl: baseUrl.replace(/\/+$/, '') };
-}
-
-export function isConfigured() {
-  return readConfig() !== null;
 }
 
 // ---------------------------------------------------------------------------
@@ -652,5 +646,3 @@ async function suggestMappingUncached({ headers, sampleRows, knownCategories, ac
     clearTimeout(timer);
   }
 }
-
-export { ImportLlmNotConfiguredError };

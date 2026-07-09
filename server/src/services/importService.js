@@ -306,4 +306,4 @@ export async function commitImport({ categoriesToCreate = [], transactions = [] 
   }
 }
 
-export { ValidationError, MAX_IMPORT_ROWS };
+export { ValidationError };

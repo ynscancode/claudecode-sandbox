@@ -91,5 +91,4 @@ async function runMigrations() {
 const migrationsReady = runMigrations();
 await migrationsReady;
 
-export const ready = migrationsReady;
 export default client;
