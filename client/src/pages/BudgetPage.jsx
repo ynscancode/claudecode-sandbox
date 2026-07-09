@@ -6,16 +6,7 @@ import { ACCOUNTS } from '../constants/categories.js'
 import { useCategories } from '../contexts/categories.js'
 import MonthSwitcher from '../components/layout/MonthSwitcher.jsx'
 import CategoryManagerModal from '../components/transactions/CategoryManagerModal.jsx'
-import { fillColorFor, suffixFor } from '../utils/budgetHealth.js'
-
-// Budget health classification shared by the editing list and the chart.
-function healthFor(actual, budget) {
-  if (budget === 0) return actual > 0 ? 'over' : 'under'
-  const pct = (actual / budget) * 100
-  if (pct > 100) return 'over'
-  if (pct >= 90) return 'near'
-  return 'under'
-}
+import { fillColorFor, suffixFor, classifyBudgetHealth } from '../utils/budgetHealth.js'
 
 export default function BudgetPage() {
   const { outgoingFor, colorFor } = useCategories()
@@ -93,7 +84,7 @@ export default function BudgetPage() {
   const rows = outgoing.map(({ name: category }) => {
     const actual = actualsMap[category] || 0
     const budget = budgetsByCategory[category] ?? 0
-    return { category, actual, budget, health: healthFor(actual, budget), color: colorFor(ACCOUNTS.SPENDING, category) }
+    return { category, actual, budget, health: classifyBudgetHealth(actual, budget), color: colorFor(ACCOUNTS.SPENDING, category) }
   })
 
   const totalBudgeted = rows.reduce((sum, r) => sum + r.budget, 0)

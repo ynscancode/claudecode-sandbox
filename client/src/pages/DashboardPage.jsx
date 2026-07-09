@@ -13,7 +13,7 @@ import DonutChart from '../components/breakdown/DonutChart.jsx'
 import { buildDonutSegments } from '../utils/donutMath.js'
 import CategoryBarList from '../components/breakdown/CategoryBarList.jsx'
 import BreakdownControls from '../components/breakdown/BreakdownControls.jsx'
-import { fillColorFor, suffixFor } from '../utils/budgetHealth.js'
+import { fillColorFor, suffixFor, classifyBudgetHealth } from '../utils/budgetHealth.js'
 
 function daysInMonth(monthStr) {
   const [year, month] = monthStr.split('-').map(Number)
@@ -302,9 +302,7 @@ export default function DashboardPage() {
   const budgetRows = budgets.map((b) => {
     const actual = catActualsMap[b.category] || 0
     const pct = b.amount > 0 ? Math.round((actual / b.amount) * 100) : (actual > 0 ? Infinity : 0)
-    const health = b.amount === 0
-      ? (actual > 0 ? 'over' : 'under')
-      : (pct > 100 ? 'over' : pct >= 90 ? 'near' : 'under')
+    const health = classifyBudgetHealth(actual, b.amount)
     return { category: b.category, budget: b.amount, actual, pct, health }
   })
   const totalBudgeted = budgetRows.reduce((s, r) => s + r.budget, 0)
