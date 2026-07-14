@@ -13,6 +13,11 @@ Each entry is registered once, at archive time, by the Engineering Director. Slu
 reused. `Shard` is the archive file holding the full history; the section there is bracketed by
 `<!-- <slug>:START -->` / `<!-- <slug>:END -->` markers.
 
+**Legacy format note:** `ARCH-0001`–`ARCH-0017` were archived before the mandatory entry format (2026-07-15);
+their shard sections are in the original freeform style, preserved verbatim (see the shard preamble). Batches
+from 2026-07-15 onward use the `### [ROLE-YYYYMMDDTHHMMSS]` + five-field format. This note only concerns the
+*prose style inside* a section — the index rows and slug/marker structure are uniform across all entries.
+
 | Slug | Category | Shard | Heading | Resolution summary | Tags |
 |---|---|---|---|---|---|
 | ARCH-0001 | export | 001 | MonthSwitcher width fix + Import→Export swap | MonthSwitcher row stretched to its activity-caption width and misaligned the account pills; fixed to a caption-independent fixed width, and the Import entry point was removed in favor of a new xlsx export endpoint + ExportModal. | monthswitcher, filter-strip, layout, alignment, import, export, xlsx, exportmodal, buildtransactionsworkbook |

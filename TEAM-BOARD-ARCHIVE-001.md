@@ -15,6 +15,8 @@ sed -n '/<!-- ARCH-NNNN:START -->/,/<!-- ARCH-NNNN:END -->/p' TEAM-BOARD-ARCHIVE
 
 Slugs `[ARCH-NNNN]` are permanent — unique, never reused or renumbered. Original in-body labels ("FOLLOW-UP BATCH 8", "SUPERSEDES Batch 7", "## tech-lead — Batch 8") are preserved as historical text; they collided (two "BATCH 7", three "Batch 8", several unnumbered) and are NOT reliable identifiers.
 
+**Legacy format note.** Every section in this shard (`ARCH-0001`–`ARCH-0017`) was archived **before** the mandatory entry format was adopted (2026-07-15), so its internal notes are in the original **freeform** style (`## <role>` headings + prose, "DONE"/"COMPLETE" markers) rather than the `### [ROLE-YYYYMMDDTHHMMSS]` + five-field format the `team-communication` skill now requires. This content is preserved **verbatim** and deliberately not retro-fitted — the history carries no time-of-day data, so reformatting would mean fabricating timestamps and flattening verified detail. Batches archived from 2026-07-15 onward use the mandatory format; the boundary is clean and dated.
+
 ---
 
 <!-- ARCH-0001:START -->
