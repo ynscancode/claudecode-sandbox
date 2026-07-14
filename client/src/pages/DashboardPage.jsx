@@ -200,6 +200,7 @@ export default function DashboardPage() {
       .reduce((sum, t) => sum + (t.direction === 'in' ? t.amount : -t.amount), 0)
   }
   const scopedDelta = netDeltaForAccount(scopeAccountId)
+  const savingsDelta = netDeltaForAccount(ACCOUNTS.SAVINGS)
   const netDelta = netDeltaForAccount(ACCOUNTS.SPENDING) + netDeltaForAccount(ACCOUNTS.SAVINGS)
 
   // Everything below is scoped to the selected account.
@@ -518,8 +519,14 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="balance-card-col balance-card-col-secondary">
-              <div className="balance-card-label">Savings</div>
-              <div className="balance-card-value balance-card-value-secondary">{formatCurrency(savingsAccount?.balance ?? 0)}</div>
+              <div className="balance-card-label">
+                <span className="balance-card-dot" style={{ background: 'var(--topup)' }} />
+                Savings
+              </div>
+              <div className="balance-card-value">{formatCurrency(savingsAccount?.balance ?? 0)}</div>
+              <div className={`balance-card-delta ${savingsDelta >= 0 ? 'delta-positive' : 'delta-negative'}`}>
+                {formatSigned(savingsDelta)} this month
+              </div>
             </div>
           </div>
         </div>
