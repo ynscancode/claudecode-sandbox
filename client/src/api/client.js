@@ -1,6 +1,6 @@
-// Base URL for the backend API. Empty string in local dev (unset
-// VITE_API_URL) means requests stay relative (`/api/...`) and go through
-// vite.config.js's dev-server proxy to http://localhost:4000, unchanged from
+// Base URL for the backend API. In production set VITE_API_URL to the
+// deployed backend origin (e.g. https://spendingtracker-server.vercel.app).
+// Empty string in local dev means requests stay relative and go through
 // before. In production, set VITE_API_URL to the deployed backend's absolute
 // origin (e.g. https://your-app.fly.dev) at build time, since a static
 // SPA host (Vercel/Netlify) has no server-side proxy to forward /api to.
