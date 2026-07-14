@@ -1,44 +1,23 @@
-# Team Board Archive
+# Team Board Archive — Shard 001
 
-Historical, fully-shipped batches pruned from the live `TEAM-BOARD.md` by `engineering-director`.
-Nothing here is deleted history — see `team-communication` skill's "Board maintenance" section for the archiving protocol.
+Cold-storage log of fully-shipped batches pruned from the live `TEAM-BOARD.md`. Nothing here is deleted — see the `team-communication` skill's "Board maintenance" section for the protocol.
+
+Two-tier archive layout:
+- **Live board** — `TEAM-BOARD.md`: active work only.
+- **Master index** — `TEAM-BOARD-INDEX.md`: the registry the Engineering Director queries FIRST (slug → shard, parent category, one-sentence resolution summary, tags). Find things through the index; never scan shards to locate them.
+- **Shards** — `TEAM-BOARD-ARCHIVE-NNN.md`: cold storage. This is shard 001, capped at 10,000 lines; when a write would exceed the cap, a new shard is opened.
+
+Each section is wrapped in explicit boundary markers so it can be extracted deterministically, without reading the shard in full (use the real slug in place of `NNNN`):
+
+```
+sed -n '/<!-- ARCH-NNNN:START -->/,/<!-- ARCH-NNNN:END -->/p' TEAM-BOARD-ARCHIVE-001.md
+```
+
+Slugs `[ARCH-NNNN]` are permanent — unique, never reused or renumbered. Original in-body labels ("FOLLOW-UP BATCH 8", "SUPERSEDES Batch 7", "## tech-lead — Batch 8") are preserved as historical text; they collided (two "BATCH 7", three "Batch 8", several unnumbered) and are NOT reliable identifiers.
 
 ---
 
-## Archived 2026-07-14 — pre-cleanup backlog (all batches through commit 19b4142, "Add budget carry-forward")
-
-This single archive entry bundles everything that had accumulated on the live board across many prior
-sessions before board-cleanup was a defined responsibility — all corresponding to already-committed,
-shipped work (verified via `git log --follow -- TEAM-BOARD.md`, last touch at commit 19b4142).
-
-Each archived section begins with a heading carrying a unique, stable **slug marker** `[ARCH-NNNN]`
-(chronological; `ARCH-0001`–`ARCH-0017` in this bundle). The slug — never a line number — is the
-identifier: a section runs from its marker to the next `[ARCH-` marker (or EOF), derived live at read
-time, so nothing breaks if the file is edited above it. Original in-body labels ("FOLLOW-UP BATCH 8",
-"SUPERSEDES Batch 7", "## tech-lead — Batch 8") are left untouched as historical text — they collided
-(two "BATCH 7", three "Batch 8", several unnumbered) and are NOT reliable identifiers; use the
-`[ARCH-NNNN]` slug instead. See the `team-communication` skill's "Consulting the archive" section for
-the lookup method.
-
-**Sections in this bundle** — grep your topic to land inside one, or grep `^#+ \[ARCH-` to list all markers live. No line numbers are stored anywhere, so this list can't go stale:
-- [ARCH-0001] — MonthSwitcher width/alignment fix; Import entry-point removed + Excel Export added (export endpoint, ExportModal, buildTransactionsWorkbook, api.exportTransactions)
-- [ARCH-0002] — Follow-up: layout refinements + export fixes
-- [ARCH-0003] — Follow-up: export download bug + export UX
-- [ARCH-0004] — Follow-up: export cell formatting
-- [ARCH-0005] — Follow-up: month separators in all-time export
-- [ARCH-0006] — Follow-up: in/out labels + standalone Manage Categories entry point
-- [ARCH-0007] — Follow-up: per-day money-in excludes transfers
-- [ARCH-0008] — Follow-up: total-budgeted figure on Budget tab
-- [ARCH-0009] — Mobile layout fix: Overview overflow + Budget card collision
-- [ARCH-0010] — Follow-up: hard day dividers on Transactions list
-- [ARCH-0011] — Deploy app online (free hosting) — initial attempt
-- [ARCH-0012] — Re-target deployment to Google Cloud free tier
-- [ARCH-0013] — Backend → Vercel serverless + Turso (libSQL) migration
-- [ARCH-0014] — Mobile responsive layout (@media max-width:768px)
-- [ARCH-0015] — Mobile fix: Monthly-insights wrap + bar-chart tooltip clip
-- [ARCH-0016] — UTC-vs-local date bug (todayStr/currentMonthStr)
-- [ARCH-0017] — User auth: tech-lead contract, JWT, per-user user_id isolation, migrations 006-009, Vercel/Turso deploy script
-
+<!-- ARCH-0001:START -->
 # [ARCH-0001] TEAM BOARD — Batch: "MonthSwitcher width fix + Import→Export swap"
 
 Shared mesh board. Each role appends notes under its own heading. Do not delete other
@@ -266,6 +245,9 @@ SQL, xlsx used for generation not untrusted parsing).
 
 ---
 
+<!-- ARCH-0001:END -->
+
+<!-- ARCH-0002:START -->
 # [ARCH-0002] FOLLOW-UP BATCH 2 (user feedback, 2026-07-03)
 
 User feedback after batch 1. All FRONTEND. Director diagnosis for each below.
@@ -337,6 +319,9 @@ FOLLOW-UP BATCH 2 COMPLETE. Build clean; lint = 2 known pre-existing only.
 
 ---
 
+<!-- ARCH-0002:END -->
+
+<!-- ARCH-0003:START -->
 # [ARCH-0003] FOLLOW-UP BATCH 3 (user feedback, 2026-07-03) — download bug + export UX
 
 1. EXPORT MONTH ARROWS: add prev/next chevron arrows to switch months IN the export modal (not just the native input). Reuse the plain `<MonthSwitcher month onChange />` (showActivityIndicator off = chevrons + month input, consistent with the app).
@@ -445,6 +430,9 @@ BATCH 3 COMPLETE. Build clean; lint = 2 known pre-existing only. Dead blob code 
 
 ---
 
+<!-- ARCH-0003:END -->
+
+<!-- ARCH-0004:START -->
 # [ARCH-0004] FOLLOW-UP BATCH 4 (user feedback, 2026-07-03) — export formatting
 
 Backend-only, in `server/src/services/transactionService.js` `buildTransactionsWorkbook`.
@@ -493,6 +481,9 @@ BATCH 4 COMPLETE. Routing: senior-backend-dev (workbook: split sheets + !cols) �
 
 ---
 
+<!-- ARCH-0004:END -->
+
+<!-- ARCH-0005:START -->
 # [ARCH-0005] FOLLOW-UP BATCH 5 (user feedback, 2026-07-03) — month separators in all-time export
 
 User: "add borders to separate between different months for the all export."
@@ -558,6 +549,9 @@ CE-achievable separation. TRADEOFF surfaced to user: true ruled borders would ne
 
 ---
 
+<!-- ARCH-0005:END -->
+
+<!-- ARCH-0006:START -->
 # [ARCH-0006] FOLLOW-UP BATCH 6 (user feedback, 2026-07-03) — in/out label + standalone Manage Categories
 
 All FRONTEND.
@@ -691,6 +685,9 @@ unchanged. Build clean; lint = 2 known pre-existing only. BATCH 6 COMPLETE.
 
 ---
 
+<!-- ARCH-0006:END -->
+
+<!-- ARCH-0007:START -->
 # [ARCH-0007] FOLLOW-UP BATCH 7 (user feedback, 2026-07-03) — day money-in excludes transfers
 
 FRONTEND, one file. Per-day "money in" subtotal on Transactions currently counts internal
@@ -746,6 +743,9 @@ live verify. Build clean; lint = 2 known pre-existing only.
 
 ---
 
+<!-- ARCH-0007:END -->
+
+<!-- ARCH-0008:START -->
 # [ARCH-0008] FOLLOW-UP BATCH 8 (user feedback, 2026-07-03) — total budgeted on Budget tab
 
 FRONTEND, one file: `client/src/pages/BudgetPage.jsx`. User: "I want to be able to see the total
@@ -784,6 +784,9 @@ BATCH 8 COMPLETE. Routing: junior-frontend-dev (1-file UI addition) -> director 
 
 ---
 
+<!-- ARCH-0008:END -->
+
+<!-- ARCH-0009:START -->
 # [ARCH-0009] MOBILE LAYOUT FIX (director-diagnosed, 2026-07-03) — Overview overflow + Budget card collision
 
 ## senior-frontend-dev
@@ -865,6 +868,9 @@ pass is the closing verification step per the task's own protocol.
 
 ---
 
+<!-- ARCH-0009:END -->
+
+<!-- ARCH-0010:START -->
 # [ARCH-0010] FOLLOW-UP BATCH 9 (user feedback, 2026-07-03) — hard day dividers on Transactions
 
 FRONTEND, styling only. User: add a visible hard horizontal border between each day group
@@ -987,6 +993,9 @@ Build clean; lint = 2 known pre-existing only. NOT COMMITTED (per task).
 
 ---
 
+<!-- ARCH-0010:END -->
+
+<!-- ARCH-0011:START -->
 # [ARCH-0011] FOLLOW-UP BATCH 8 (2026-07-03) — DEPLOY APP ONLINE (free hosting)
 
 Goal: host frontend + backend for free so user reaches their budget tracker from any device
@@ -1219,6 +1228,9 @@ and commit themselves.
 
 ---
 
+<!-- ARCH-0011:END -->
+
+<!-- ARCH-0012:START -->
 # [ARCH-0012] FOLLOW-UP BATCH 7 (user request, 2026-07-03) — re-target deployment to Google Cloud Free Tier
 
 Switch the deployment target from Oracle Cloud to Google Cloud Free Tier (e2-micro, Ubuntu 22.04).
@@ -1328,6 +1340,9 @@ change → no live-verify needed; no pending mesh requests. BATCH 7 COMPLETE.
 
 ---
 
+<!-- ARCH-0012:END -->
+
+<!-- ARCH-0013:START -->
 # [ARCH-0013] TEAM BOARD — Batch 8: "Backend → Vercel serverless + Turso migration"
 
 Director-opened. SUPERSEDES Batch 7 (GCloud VM deploy): the app moves from a single-user
@@ -1995,6 +2010,9 @@ that returns your data, so does everyone else's curl.
 
 ---
 
+<!-- ARCH-0013:END -->
+
+<!-- ARCH-0014:START -->
 # [ARCH-0014] TEAM BOARD — Batch: "Mobile responsive layout"
 
 ## Scope
@@ -2231,6 +2249,9 @@ judgment involved, hence flagging it as the item most worth the director's direc
 
 ---
 
+<!-- ARCH-0014:END -->
+
+<!-- ARCH-0015:START -->
 # [ARCH-0015] MOBILE FIX BATCH (director-diagnosed, 2026-07-04) — Monthly insights wrap + bar-chart tooltip clip
 
 Two mobile (375px) Overview bugs. Director diagnosed both LIVE via Playwright before dispatch.
@@ -2369,6 +2390,9 @@ ui-ux/devops/tech-writer/qa (justified in the batch header). BATCH COMPLETE.
 
 ---
 
+<!-- ARCH-0015:END -->
+
+<!-- ARCH-0016:START -->
 # [ARCH-0016] FOLLOW-UP BATCH 10 (user, 2026-07-04) — UTC vs local date bug
 
 USER BUG: Dashboard shows the wrong day near midnight for users east of UTC (at 1:51 AM local
@@ -2440,6 +2464,9 @@ before committing.
 
 ---
 
+<!-- ARCH-0016:END -->
+
+<!-- ARCH-0017:START -->
 # [ARCH-0017] BATCH 11 (user auth) — TECH-LEAD CONTRACT
 
 Binding architecture contract for adding user accounts + per-user data isolation. The dba,
@@ -4528,3 +4555,39 @@ NOTE for next director: TEAM-BOARD.md is very large (prior unarchived batches). 
 - L4436-L4461 — spend-signal legend thresholds ThresholdsProvider + savings-in-balance-card DashboardPage, design+implementation
 - L4462-L4474 — qa verification spend-signal legend savings card, Escape/blur stale-draft defect
 - L4475-L4518 — savings-in-balance-card follow-ups: topup dot, month-delta, left-align, visually verified commits 0adb555 768a287 a11a73a
+
+## Archived 2026-07-15 — VITE_API_URL BOM corruption fix on spendingtracker-client prod (env re-add + client.js PROD fallback, commit 1451ba7)
+
+## 2026-07-15 01:10 — devops-deployment — Fixed corrupted VITE_API_URL (BOM bug) on spendingtracker-client prod
+
+**Root cause found**: the client Vercel project (`hottudoggu1/spendingtracker-client`) was **not git-connected** — `vercel env pull` showed all `VERCEL_GIT_*` system vars empty, and `vercel git ls` had no connect target set. This explains why the earlier fix attempt (commit `81218e3` pushed to bust cache) did nothing: deploys here are `vercel --prod` CLI uploads of the local working tree, not git-triggered builds. Pushing to GitHub is a no-op for this project.
+
+**What I changed**:
+1. `vercel env rm VITE_API_URL production` (removed the BOM-corrupted value), twice — first re-add via `vercel env add ... < file` produced a "Sensitive" var (write-only, can't be read back to verify), so I removed it again and re-added with `--no-sensitive --value "https://spendingtracker-server.vercel.app"` so it's byte-verifiable.
+2. **Byte verification** (before add): wrote the value via `[System.IO.File]::WriteAllText(path, value, New-Object System.Text.UTF8Encoding($false))` — confirmed file length 41 bytes, first bytes `68 74 74` (`h`,`t`,`t`), no `EF BB BF`.
+3. **Byte verification** (after add, via `vercel env pull`): pulled value back, extracted it programmatically — length 41, first char code point 104 (`h`), no leading U+FEFF (65279). Clean.
+4. **Code fix** (`client/src/api/client.js`): `API_BASE` now strips a leading BOM (`﻿`, using the escape not the literal char — a literal BOM char in source tripped `no-irregular-whitespace` in lint) and a trailing slash, and falls back to the hardcoded prod server origin (`https://spendingtracker-server.vercel.app`) **only when `import.meta.env.PROD` is true** — local dev with no `VITE_API_URL` still gets `''` and uses the Vite proxy, per CLAUDE.md's documented dev flow. Comment block updated to match.
+5. **Build**: `npm run build` clean. Grepped `dist/assets/*.js` for BOM bytes and the URL — 0 BOM bytes, exactly 1 clean occurrence of `` `https://spendingtracker-server.vercel.app`.replace( ``.
+6. **Lint**: `npm run lint` — exactly the 2 pre-existing `react-hooks/set-state-in-effect` errors (DashboardPage.jsx:127, TransactionsPage.jsx:41), 0 new.
+7. **Deployed**: `vercel --cwd C:\claudecode\client --prod` → aliased to `https://spendingtracker-client-lhhk.vercel.app` (deployment `dpl_Dbsqjkj3HNGAm6NauMXTxULuTHSR`).
+8. **Deployed-bundle verification**: curled the live prod asset (`/assets/index-DVuADBz3.js`) directly — 0 BOM bytes, 1 clean `spendingtracker-server.vercel.app` occurrence, no doubled-origin string. CORS preflight (`OPTIONS /api/auth/login` from the client origin) returns `204`.
+
+**Not verified**: I did not perform an actual login POST against prod (no test credentials available to me). The URL construction and CORS handshake are confirmed correct, but nobody has watched a real login round-trip in DevTools yet.
+
+**VISUAL-VERIFICATION requested**: please load `https://spendingtracker-client-lhhk.vercel.app`, open DevTools → Network, attempt a login, and confirm the request goes to `https://spendingtracker-server.vercel.app/api/auth/login` (not a doubled/BOM'd URL) and returns a real response (200/401 with JSON, not a network error).
+
+**Git status**: `client/src/api/client.js` has the fix in the working tree but is **uncommitted** — I'm not authorized to commit/push. Since this project deploys from local files (not git), the fix is already live in prod without a commit. However the working tree fix should still be committed by the engineering-director so it isn't lost/reverted by a future local change; suggested message: "Fix VITE_API_URL BOM corruption: strip leading BOM, add prod fallback origin, guard by import.meta.env.PROD". Note: `.gitignore` and `CLAUDE.md` also show as modified in `git status` — that predates this task, I did not touch either file.
+
+**Cleanup**: removed all temp verification files (`vite_api_url.txt`, `.env.production.pulled`, `deployed-bundle.js`) — none left in the repo.
+
+
+## [DIRECTOR] CLOSEOUT — VITE_API_URL BOM fix shipped (commit 1451ba7), one live-login check escalated
+Routed single-specialist to devops-engineer (deploy/infra issue + endorsed code-resilience fallback; skipped PO/PM/tech-lead/design/security/dba — no ambiguity, no new egress, no schema). Devops root-caused the real blocker: the `hottudoggu1/spendingtracker-client` Vercel project is NOT git-connected, so the prior cache-bust commit (81218e3) was a no-op — deploys are local-tree CLI uploads. Fix: re-added VITE_API_URL byte-verified BOM-free (UTF8Encoding($false), first bytes 68 74 74, confirmed clean via `vercel env pull`), plus a durable code fallback in client/src/api/client.js (strip leading BOM + trailing slash; hardcoded prod origin only under import.meta.env.PROD so local-dev Vite proxy is preserved per CLAUDE.md). Local + deployed bundles grep-verified clean (0 BOM bytes), CORS preflight 204, lint at baseline (2 pre-existing, 0 new).
+Since the project deploys from local files, I committed + pushed client.js (1451ba7 -> origin/main) so the fix persists in history and survives any future clean checkout — devops correctly flagged it was uncommitted.
+VISUAL-VERIFICATION — PARTIALLY DONE by me via Playwright on the live prod site: page loads with 0 console errors/warnings, login form renders correctly, no malformed-URL/failed-asset errors. STILL OPEN (escalated to caller): an actual credentialed login POST round-trip — the auto-mode classifier blocked entering credentials into a password field on the external prod domain (correct security guardrail; I did not work around it). Someone with prod test creds should attempt a real login in DevTools Network and confirm the request hits `https://spendingtracker-server.vercel.app/api/auth/login` (not a doubled/BOM'd URL) and returns JSON. NOT archiving this batch — it stays live until that one check is done.
+
+## Section index — archived 2026-07-15 VITE_API_URL BOM fix
+- L4534-L4556 — devops VITE_API_URL BOM corruption Vercel spendingtracker-client, byte-verified no-BOM env re-add, client.js PROD fallback strip BOM, project not git-connected
+- L4557-L4560 — director closeout BOM fix commit 1451ba7, Playwright page-load clean, live login user-confirmed working
+
+<!-- ARCH-0017:END -->
