@@ -506,13 +506,21 @@ export default function DashboardPage() {
 
       <div className="card-grid">
         <div className="balance-card">
-          <div className="balance-card-label">
-            <span className="balance-card-dot" style={{ background: 'var(--accent)' }} />
-            Spending balance
-          </div>
-          <div className="balance-card-value">{formatCurrency(scopedBal)}</div>
-          <div className={`balance-card-delta ${scopedDelta >= 0 ? 'delta-positive' : 'delta-negative'}`}>
-            {formatSigned(scopedDelta)} this month
+          <div className="balance-card-split">
+            <div className="balance-card-col">
+              <div className="balance-card-label">
+                <span className="balance-card-dot" style={{ background: 'var(--accent)' }} />
+                Spending balance
+              </div>
+              <div className="balance-card-value">{formatCurrency(scopedBal)}</div>
+              <div className={`balance-card-delta ${scopedDelta >= 0 ? 'delta-positive' : 'delta-negative'}`}>
+                {formatSigned(scopedDelta)} this month
+              </div>
+            </div>
+            <div className="balance-card-col balance-card-col-secondary">
+              <div className="balance-card-label">Savings</div>
+              <div className="balance-card-value balance-card-value-secondary">{formatCurrency(savingsAccount?.balance ?? 0)}</div>
+            </div>
           </div>
         </div>
         <div className="balance-card accent">

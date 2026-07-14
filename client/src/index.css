@@ -663,6 +663,27 @@ select {
 .delta-positive { color: var(--green); }
 .delta-negative { color: var(--red); }
 
+.balance-card-split {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.balance-card-col-secondary {
+  text-align: right;
+}
+
+.balance-card-value-secondary {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: clamp(20px, 2.4vw, 25px);
+  letter-spacing: -0.01em;
+  margin: 12px 0 8px;
+}
+
 .pill-tag {
   display: inline-flex;
   align-items: center;
@@ -1942,6 +1963,25 @@ td {
   gap: 7px;
   font: 500 12px/1 var(--font-ui);
   color: var(--muted);
+}
+
+/* ---------- Spend-signal legend (TransactionsPage) ---------- */
+
+.threshold-legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  font: 500 12px/1 var(--font-ui);
+  color: var(--muted);
+}
+
+.error-text-compact {
+  color: var(--red);
+  font: 500 13px/1.3 var(--font-ui);
+  margin-top: 4px;
+  display: block;
 }
 
 /* ---------- Import wizard ---------- */

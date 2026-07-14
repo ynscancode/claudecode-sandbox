@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { api } from '../api/client.js'
 import TransactionList from '../components/transactions/TransactionList.jsx'
+import ThresholdLegend from '../components/transactions/ThresholdLegend.jsx'
 import TransactionModal from '../components/transactions/TransactionModal.jsx'
 import ExportModal from '../components/transactions/ExportModal.jsx'
 import ClearHistoryModal from '../components/transactions/ClearHistoryModal.jsx'
@@ -139,6 +140,8 @@ export default function TransactionsPage() {
           </div>
         </div>
       </div>
+
+      <ThresholdLegend />
 
       <div className="account-summary-strip">
         {accounts.map((account) => (

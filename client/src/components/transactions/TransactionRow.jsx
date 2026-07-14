@@ -4,24 +4,27 @@ import { ACCOUNT_NAMES } from '../../constants/categories.js'
 import { highlightClassFor, transferBadgeFor } from './highlight.js'
 import { formatInflow, formatOutflow } from '../../utils/format.js'
 import { useCategories } from '../../contexts/categories.js'
+import { useThresholds } from '../../contexts/thresholds.js'
 import BalanceValue from './BalanceValue.jsx'
 import AccountingValue from './AccountingValue.jsx'
 
 function ReadRow({ txn, onEdit, onDelete }) {
   const { colorFor } = useCategories()
-  const highlightClass = highlightClassFor(txn)
+  const { thresholds } = useThresholds()
+  const highlightClass = highlightClassFor(txn, thresholds)
   const isTransfer = !!txn.is_transfer
-  // Transfers get one neutral row background; >$20/>$40 spend warnings render as a
-  // small dot next to the amount instead of a cell background fill.
+  // Transfers get one neutral row background; orange/red spend warnings (thresholds
+  // live in ThresholdsContext, editable via the legend on TransactionsPage) render as
+  // a small dot next to the amount instead of a cell background fill.
   const rowClass = isTransfer ? 'highlight-transfer' : ''
   const isSpendWarning = highlightClass === 'highlight-orange' || highlightClass === 'highlight-red'
   const dotClass = isSpendWarning ? highlightClass : ''
   const badge = transferBadgeFor(txn)
   const dotColor = isTransfer ? 'var(--faint)' : colorFor(txn.account_id, txn.category)
   const warningTitle = highlightClass === 'highlight-red'
-    ? 'Large spend: over $40'
+    ? `Large spend: over $${thresholds.red}`
     : highlightClass === 'highlight-orange'
-      ? 'Notable spend: over $20'
+      ? `Notable spend: over $${thresholds.orange}`
       : undefined
 
   return (
