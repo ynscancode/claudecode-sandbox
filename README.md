@@ -1,8 +1,7 @@
-# ClaudeCode
+# spendingtracker
 
-A scratch repo for trying out Claude Code workflows.
+Small spending tracker project
 
 ## Getting Started
 
-This repo is meant for small, safe experiments — typo fixes, README tweaks,
-and tiny improvements you can practice shipping as pull requests.
+A working spending tracker with a full financial breakdown dashboard, transactions list and budgeting function, with the option to export to excel.
