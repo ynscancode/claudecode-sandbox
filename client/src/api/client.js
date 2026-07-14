@@ -1,10 +1,19 @@
 // Base URL for the backend API. In production set VITE_API_URL to the
 // deployed backend origin (e.g. https://spendingtracker-server.vercel.app).
-// Empty string in local dev means requests stay relative and go through
-// before. In production, set VITE_API_URL to the deployed backend's absolute
-// origin (e.g. https://your-app.fly.dev) at build time, since a static
-// SPA host (Vercel/Netlify) has no server-side proxy to forward /api to.
-export const API_BASE = import.meta.env.VITE_API_URL || '';
+// Empty string in local dev means requests stay relative and go through the
+// Vite dev-server proxy to :4000 (see vite.config.js) — a static SPA host
+// (Vercel/Netlify) has no such proxy, so production needs an absolute origin
+// at build time. If VITE_API_URL is unset in a production build we fall back
+// to the known deployed server origin (import.meta.env.PROD is true only for
+// `vite build`, so local dev is unaffected and stays relative). We also
+// strip a leading BOM (U+FEFF) and any trailing slash defensively — a BOM
+// once leaked into this env var via a PowerShell `echo` pipe (which emits
+// UTF-16LE-with-BOM) and made the browser resolve the URL as relative,
+// silently prefixing the client's own origin onto every API call.
+const rawApiBase =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD ? 'https://spendingtracker-server.vercel.app' : '');
+export const API_BASE = rawApiBase.replace(/^\uFEFF/, '').replace(/\/+$/, '');
 export const API_TOKEN = import.meta.env.VITE_API_TOKEN || '';
 
 // BATCH 11 (user auth): the active user's JWT lives in localStorage, not a
